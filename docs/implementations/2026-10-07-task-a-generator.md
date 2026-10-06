@@ -5,7 +5,7 @@
 | PLAN step | 3 · Task A generator (synthetic maps, marked and unmarked) |
 | Branch | `stage0/03-task-a` (stacked on `stage0/02-moe-model`) |
 | SRS requirements | S0-F-15 (M random maps, one map per sequence), S0-F-16 (marked and unmarked), S0-F-17 (score only map-determined positions), S0-F-18 (record the map), S0-F-12 (skewed data, prepared for), decision D5 (M = 8, V = 26, L = 64) |
-| Status | Planned |
+| Status | Verified on the reference laptop, 2026-10-07 (CPU code; see Verification). No model trained on it yet |
 
 ## Problem / Motivation
 
@@ -99,9 +99,38 @@ Rough intuition at the reference parameters, for checking the implementation rat
 
 ## Verification
 
-To be completed after implementation.
+Run on 2026-10-07 on the reference laptop (Windows 11, Python 3.13.14, PyTorch 2.12.1+cu126). The generator runs on the CPU, so no GPU is involved.
 
-**Not tested:** to be completed after implementation.
+**1. Test suite.** `python -m pytest`: 119 passed, 0 skipped. That is the 98 tests of steps 1 and 2 plus 21 in `tests/test_task_a.py`, which check:
+
+- The maps depend only on `task_seed`, the same in both variants and different for another seed. The vocabulary size is 34.
+- Configuration errors raise, and the section loads from TOML, including `map_weights`.
+- The exact token layout of both variants. Markers appear only at position 0 of marked sequences. Only key positions can carry a target.
+- Every scored target equals `maps[map_id, key]`.
+- Exactly the first occurrences are scored, and per sequence the number scored equals the number of distinct keys. The empirical mean is checked against the formula.
+- The same generator state gives an identical batch, and another seed a different one.
+- Map weights: degenerate, skewed (75% versus 25% within 0.02 over 8,000 sequences) and invalid.
+- Explicit map ids, and the fixed, balanced evaluation set.
+- The Bayes-optimal accuracy is exactly 1 for the marked variant, 1 for one map, and 0.75 in a hand-worked two-map example. At the reference parameters it lies strictly between 0.9 and 1.
+- A batch feeds the step 2 model, and an untrained model's loss is about ln 34.
+
+**2. Measured task properties** (reference parameters M = 8, V = 26, L = 64, `task_seed` 20261007):
+
+| Quantity | Value |
+|---|---|
+| Bayes-optimal accuracy, unmarked, 8,192 balanced evaluation sequences | 0.95106 (evaluation seed 1); 0.95130 (seed 2); 0.95099 (seed 3) |
+| Bayes-optimal accuracy, marked | 1.0 exactly |
+| Scored positions per sequence (8,192 sequences) | mean 18.537, minimum 12, maximum 24 (formula: 18.590) |
+| Mean fraction of keys on which two different maps agree | 0.0398 (chance would be 1/26 = 0.0385) |
+
+**Consequence for interpreting results.** In the unmarked variant even a perfect model scores about 95.1%, because the first one or two pairs of a sequence often do not identify the map. S0-A-02 compares sliced training with centralized training, not with 100%, so it is unaffected. But any absolute statement about unmarked accuracy should be made against this ceiling.
+
+**Not tested:**
+
+- Training on the task. Whether the step 2 model learns the task, and how fast, is step 4.
+- Map types other than random functions, and parameters other than the reference ones, beyond the small cases in the tests.
+- Skewed data in an actual run (only the sampling weights are tested).
+- Throughput of generation for large batches; it was not measured.
 
 ## Related Docs
 
