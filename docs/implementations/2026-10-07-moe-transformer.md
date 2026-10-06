@@ -5,7 +5,7 @@
 | PLAN step | 2 · Mixture-of-experts transformer with maskable router |
 | Branch | `stage0/02-moe-model` (stacked on `stage0/01-skeleton`) |
 | SRS requirements | S0-F-01 (decoder-only transformer, mixture-of-experts feed-forward layers, configurable E and k), S0-F-02 (expert mask), S0-F-03 (sizes from configuration), S0-F-25 (slices per layer), S0-N-02 (size bounds), S0-N-05 (reusable by the coordinator) |
-| Status | Planned |
+| Status | Verified on the reference laptop (RTX 4070 Laptop GPU), 2026-10-07; see Verification. No training run yet |
 
 ## Problem / Motivation
 
@@ -142,9 +142,42 @@ where E_held is the number of experts the layer holds, summed per layer for a sl
 
 ## Verification
 
-To be completed after implementation.
+Run on 2026-10-07 on the reference laptop: NVIDIA GeForce RTX 4070 Laptop GPU (8 GB), Windows 11, Python 3.13.14, PyTorch 2.12.1+cu126.
 
-**Not tested:** to be completed after implementation.
+**1. Test suite.** `python -m pytest -v`: 98 passed, 0 skipped. That is the 64 tests of step 1 plus 34 in `tests/test_model.py`. The model tests use a tiny configuration (V = 11, d = 32, 2 layers, 4 heads, h = 48, E = 4, k = 2) on random tokens; they check behaviour, not learning. What they establish:
+
+- Output shapes, and that each layer routes exactly B·T·k assignments.
+- Loss = CE + `balance_coef` · balance loss, with plain CE at the default coefficient 0. Targets of -100 are ignored.
+- Causality. Routing decisions before a changed token are identical, and logits there agree to 3e-8, not bitwise. The difference comes from experts regrouping tokens, so a matrix product runs over a different number of rows; block-0 attention output was bitwise identical. Logits from the changed token on differ by up to 0.29.
+- Every configuration error listed in the plan raises, including k = 1, k > E, and a slice or mask leaving fewer than k experts.
+- Gate weights sum to 1, and only available experts are ever selected.
+- A mask allowing every expert gives bitwise the same logits as no mask.
+- Sparse dispatch matches the dense reference to 1e-6.
+- Router rows of masked experts get exactly zero gradient, and masked experts get no gradient at all.
+- The balance loss is 1 under uniform routing and 2 in a constructed collapse onto 2 of 4 experts.
+- **A slice model loaded from the full model's filtered state dict gives bitwise the same logits, routing, counts, loss and gradients as the full model under the matching mask,** on CPU and on CUDA (`strict` mode).
+- `expert_param_owner`, and parameter counts equal to the formula for full and slice models and for the two worked examples.
+- The fused attention path agrees with the explicit path to 1e-5.
+- On CUDA in `strict` mode, a forward and backward pass completes (so every operation has a deterministic kernel) and two repetitions give bit-identical logits and gradients.
+- On CUDA in `warn` mode, no determinism warning is raised with explicit attention.
+
+**2. Footprint at the sizes of S0-N-02.** A throwaway measurement, not committed as a script. Seed 7, `warn` mode, fp32, explicit attention, AdamW with learning rate 1e-3, 12 optimizer steps on one repeated random batch, median of the last 10 step times:
+
+| Configuration | Parameters | Batch | Median step | Peak GPU memory |
+|---|---|---|---|---|
+| Task A-like (V 34, d 128, 4 layers, 4 heads, h 256, E 8, k 2) | 3,421,824 | 64 × 64 | 114 ms | 393 MiB |
+| Task B-like (V 27, d 384, 6 layers, 6 heads, h 768, E 8, k 2) | 46,050,432 | 32 × 256 | 212 ms | 3,423 MiB |
+
+Both fit easily in 8 GB. The Task A step time is high for the model size. The likely cause is that dispatch waits on the GPU once per expert per layer (finding which tokens chose the expert), 32 times per pass here; this was not profiled. If it limits the sweeps, it can be optimized without changing results; it was left as is.
+
+**Not tested:**
+
+- Learning. No model has been trained on any task; the losses in the footprint run come from repeatedly fitting one random batch and mean nothing.
+- Dropout above 0: implemented but not exercised by any test.
+- The fused attention path on CUDA in `warn` mode is known to be non-deterministic (step 2 check) and is not the default; it was not run end to end.
+- Mixed precision: not implemented.
+- Throughput at other batch shapes, and on any machine other than the reference laptop.
+- The independent-per-layer slice policy specifically. Slices here are arbitrary per-layer subsets, which covers both policies, but no assignment policy exists until step 5.
 
 ## Related Docs
 

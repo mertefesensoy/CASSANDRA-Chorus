@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import os
 
-import pytest
-import torch
+# cuBLAS reads this when first used, so it must be set before any test touches
+# CUDA; entry points do the same through repro.prepare_process().
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
+import pytest  # noqa: E402
+import torch  # noqa: E402
 
 
 @pytest.fixture
