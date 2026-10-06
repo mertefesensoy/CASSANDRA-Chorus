@@ -1,0 +1,13 @@
+# Smoke check of the run pipeline (PLAN step 1). Not an experiment:
+# it trains nothing and its checksum only tests reproducibility.
+
+[run]
+name = "smoke"
+seed = 7
+device = "cuda"
+determinism = "warn"
+notes = "Pipeline smoke check: config, seeds, determinism, run log, tiny CUDA computation."
+
+[smoke]
+# Side length of the random square matrices.
+size = 256

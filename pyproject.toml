@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cassandra-chorus"
+version = "0.0.1"
+description = "Sliced local training of a mixture-of-experts language model across a pool of volunteer machines (Stage 0: single-machine simulation)."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Mert Efe Şensoy" }]
+# Minimum versions are the ones Stage 0 is tested on (SRS decision D3).
+# Lower floors are not claimed; revisit at Stage 1.
+requires-python = ">=3.13"
+dependencies = [
+    "torch>=2.12",
+    "numpy>=2.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9.0"]
+
+[tool.setuptools.packages.find]
+include = ["cassandra_chorus*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Code runs from the repository root without installation (SRS decision D3).
+pythonpath = ["."]
+addopts = "-ra"
+markers = [
+    "gpu: needs a CUDA GPU; skipped when none is available",
+]

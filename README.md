@@ -6,13 +6,38 @@ The model is a mixture-of-experts transformer. Each worker trains the shared par
 
 ## Status
 
-Planning. Nothing is implemented yet, and no results exist.
+Stage 0, PLAN step 1 (repository skeleton): configuration, run logging, seeding and test setup. No model, data or training code exists yet, and there are no results.
 
 ## Documents
 
 - [`docs/SRS.md`](docs/SRS.md): software requirements specification
 - [`docs/PLAN.md`](docs/PLAN.md): plan memo, stages and Stage 0 work breakdown
+- [`docs/implementations/`](docs/implementations/): one document per change
+- [`RESULTS.md`](RESULTS.md): hand-written record of runs that inform decisions
+
+## Running
+
+Requirements: Python 3.13, PyTorch 2.12 with CUDA, NumPy 2.4, and pytest for the tests. Everything runs from the repository root without installing the package.
+
+Raw run logs and checkpoints are not committed. They go to the folder named by the `CHORUS_RUNS_DIR` environment variable, or to `runs/` in the repository if it is not set. Keep that folder outside OneDrive and, with the Microsoft Store build of Python, outside `AppData`. To set it permanently for your Windows user (PowerShell, then open a new terminal):
+
+```powershell
+[Environment]::SetEnvironmentVariable("CHORUS_RUNS_DIR", "C:\Users\senso\chorus-runs", "User")
+```
+
+Run the tests (the GPU tests are skipped when CUDA is not available):
+
+```powershell
+python -m pytest
+```
+
+Smoke check of the run pipeline (prints the run folder and a checksum; the same seed gives the same checksum):
+
+```powershell
+python -m scripts.smoke --config configs/smoke.toml
+python -m scripts.smoke --config configs/smoke.toml --set run.seed=11
+```
 
 ## Licence
 
-Apache License 2.0. See [`LICENSE`](LICENSE).
+Apache License 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).

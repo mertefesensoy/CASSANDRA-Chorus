@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Raw run logs and checkpoints stay local (SRS S0-N-08). This is the default
+# runs folder when CHORUS_RUNS_DIR is not set; on the reference laptop runs go
+# outside the repository (see README).
+/runs/
+
+# Checkpoints and weights, wherever they end up
+*.pt
+*.pth
+*.safetensors
