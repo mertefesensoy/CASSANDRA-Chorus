@@ -5,7 +5,7 @@
 | PLAN step | 1 · Repository skeleton: layout, licence, configuration format, logging, test setup |
 | Branch | `stage0/01-skeleton` (stacked on `docs/owner-decisions-2026-10-07`) |
 | SRS requirements | S0-N-03 (reproducibility), S0-N-05 (coordinator separated from simulation), S0-N-08 (raw runs local), S0-F-24 (structured run log) |
-| Status | Planned |
+| Status | Verified on the reference laptop (RTX 4070 Laptop GPU), 2026-10-07; see Verification |
 
 ## Problem / Motivation
 
@@ -104,9 +104,57 @@ No statistical method is involved. Two hashes are used, both SHA-256:
 
 ## Verification
 
-To be completed after implementation.
+All of the following were run on 2026-10-07 on the reference laptop: NVIDIA GeForce RTX 4070 Laptop GPU (8187 MiB, compute capability 8.9), Windows 11, Python 3.13.14 (Microsoft Store build), PyTorch 2.12.1+cu126, CUDA 12.6, cuDNN 9.10.2, NumPy 2.4.4, pytest 9.0.2.
 
-**Not tested:** to be completed after implementation.
+**1. Test suite.** From the repository root:
+
+```powershell
+python -m pytest -v
+```
+
+Result: 64 passed, 0 skipped, 0 failed (about 32 s). The CUDA tests ran on the GPU rather than being skipped. The 2 warnings pytest reports are the deliberate test warnings raised inside `test_capture_warnings_records_each_distinct_warning_once`. What the suite covers:
+
+- Configuration: defaults, unknown keys at every depth, missing required keys, wrong types (including a boolean given for an integer), `Literal` values, tuple and optional fields, overrides, malformed overrides, hash invariance, JSON round trip, unsupported and malformed files.
+- Run log: run ID format, refusal to overwrite, JSON lines, non-finite floats, NumPy and PyTorch scalars, reserved fields, `failed` and `interrupted` end records, warning capture with deduplication and counts, the header and `config.json`, and git state both outside a repository and in a temporary repository with an uncommitted change (patch saved and identical to `git diff HEAD`).
+- Determinism: seeding, the three modes, `CUBLAS_WORKSPACE_CONFIG` handling, refusal after CUDA is initialized.
+- A real non-deterministic CUDA operation: `torch.histc` on a CUDA float tensor produces the warning in `warn` mode and raises in `strict` mode.
+- The layering guard on the real coordinator package (1 file today), plus 8 violating and 5 allowed synthetic imports.
+- `test_smoke_gpu.py`: the smoke entry point run as 3 separate processes per device. On CUDA and on CPU, two runs with seed 7 give equal checksums and a run with seed 11 gives a different one.
+
+**2. Smoke check against a clean commit.** At commit `53bc9f0` on `stage0/01-skeleton`, with `CHORUS_RUNS_DIR=C:\Users\senso\chorus-runs` set for these commands only:
+
+```powershell
+python -m scripts.smoke --config configs/smoke.toml
+python -m scripts.smoke --config configs/smoke.toml
+python -m scripts.smoke --config configs/smoke.toml --set run.seed=11
+```
+
+| Run ID | Seed | Device | Checksum (SHA-256) |
+|---|---|---|---|
+| `20261006T215441Z_smoke_s7` | 7 | cuda | `9fc26c3e553c716351bf70cee7f490d5182631d26d5e486b9221df13fa3f862b` |
+| `20261006T215450Z_smoke_s7` | 7 | cuda | `9fc26c3e553c716351bf70cee7f490d5182631d26d5e486b9221df13fa3f862b` |
+| `20261006T215457Z_smoke_s11` | 11 | cuda | `a6ba28a852696c6ae2d38578deca12916e9274f94228507f3f006d4abb1c3a9e` |
+
+Run IDs are in UTC, so the date reads 2026-10-06 although the runs were made shortly before 01:00 local time on 2026-10-07. The log of the first run contains records `header`, `final`, `warnings_summary` and `end`, in that order. The header records:
+
+- determinism mode `warn` with `CUBLAS_WORKSPACE_CONFIG=:4096:8`
+- seeds 7 for Python, NumPy and PyTorch
+- git commit `53bc9f0` with a clean tree, so no patch was saved
+- the software versions above and the GPU name
+
+The warnings summary is empty, so no operation without a deterministic kernel was used. The end status is `completed`.
+
+**Observation for step 2.** In PyTorch 2.12.1 with deterministic algorithms enabled in `warn` mode, `Tensor.index_add_` and `Tensor.scatter_add_` on CUDA raised no non-determinism warning, while `torch.histc`, `torch.bincount` with weights and `torch.median` along a dimension did. This was a one-off check on small tensors, not a guarantee for every shape or dtype.
+
+**Not tested:**
+
+- Any model, data or training code: none exists yet. The smoke computation is one matrix product, a log-sum-exp loss and one backward pass on 256 by 256 matrices.
+- Bit-exact reproduction of real training. The checksum shows it only for that toy computation, on this GPU, with this software stack.
+- Reproduction on any other machine, GPU, driver, operating system or PyTorch version.
+- The `strict` and `off` modes in an end-to-end run. They are tested only as settings, plus the `torch.histc` check for `strict`.
+- Behaviour with `CHORUS_RUNS_DIR` under `AppData` with the Store Python. That case is avoided by decision, not tested.
+- Concurrent runs that start in the same second with the same name and seed. Creating the run folder would fail with an error rather than overwrite, but this was not exercised under real concurrency.
+- Installation through `pyproject.toml`. The package is not installed, by decision.
 
 ## Related Docs
 
