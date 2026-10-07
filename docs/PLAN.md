@@ -38,7 +38,7 @@ Steps are listed in dependency order. No dates are given: the pace depends on th
 | 1 | Repository skeleton: layout, licence, configuration format, logging, test setup | Empty but runnable repo | S0-N-03, S0-N-05, S0-N-08, S0-F-24 |
 | 2 | Mixture-of-experts transformer with maskable router | Model code and unit tests | S0-F-01 to S0-F-03 |
 | 3 | Task A generator (synthetic maps, marked and unmarked) | Dataset code with map labels | S0-F-15 to S0-F-18 |
-| 4 | Centralized baseline on Task A | First reference numbers | S0-F-13 |
+| 4 | Centralized baseline on Task A: first a pilot with a routing-necessity diagnostic and a proposed compute budget, then (after owner approval) the full centralized matrix | Learning curves, diagnostic, reference numbers | S0-F-13 |
 | 5 | Coordinator logic: slice assignment and merge, with tests | Reusable module | S0-F-05 to S0-F-10, S0-F-25, S0-N-06 |
 | 6 | Simulation harness: N sequential workers, fault injection, resumable rounds | Sliced training runs | S0-F-04, S0-F-11, S0-F-12, S0-N-04 |
 | 7 | Full-model local-averaging baseline | Separates cost of local steps from cost of slicing | S0-F-14 |
@@ -135,4 +135,4 @@ Decided on 2026-10-07 (the full list, with details, is in SRS section 9):
 
 Also decided earlier: the repository, `CASSANDRA-Chorus`, at https://github.com/mertefesensoy/CASSANDRA-Chorus. On 2026-10-07 no PyPI project and no Hugging Face namespace named `cassandra-chorus` existed. That does not reserve the name.
 
-Still needed before Task A runs: whether "across all maps" in SRS S0-A-01 means every map individually or accuracy pooled over maps.
+Decided later on 2026-10-07: "across all maps" in SRS S0-A-01 means every map individually (SRS D10). Step 4 starts with a pilot that includes a routing-necessity diagnostic: accuracy of the centralized model with its trained router, with random routing, and with each expert removed. Its purpose is to establish whether Task A can detect a routing failure at all: Task A holds about a thousand bits, which any single expert can store. The compute budget for the Task A comparisons is proposed to the owner after the pilot.

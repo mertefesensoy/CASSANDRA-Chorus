@@ -104,7 +104,7 @@ Reference parameters (decided 2026-10-07): M = 8 maps over an alphabet of V = 26
 
 | ID | Criterion |
 |---|---|
-| S0-A-01 | Task A, marked variant: merged model reaches at least 99% scored accuracy across all maps. Precondition: the centralized baseline reaches 99.9% or above (see below) |
+| S0-A-01 | Task A, marked variant: merged model reaches at least 99% scored accuracy on every map individually. Precondition: the centralized baseline reaches 99.9% or above on every map (see below) |
 | S0-A-02 | Task A, unmarked variant: merged model accuracy within 2 percentage points of the centralized baseline |
 | S0-A-03 | Task A: no expert receives negligible traffic in the merged model, in any mixture layer (defined below) |
 | S0-A-04 | Task B: merged model bits per character within 5% (relative) of the centralized baseline at equal total compute |
@@ -117,7 +117,7 @@ Definitions (added in Draft 0.4 and confirmed with the thresholds):
 - **Negligible traffic.** For each mixture layer separately, an expert's traffic share is the fraction of held-out tokens routed to it, where each token counts once for each of the k experts it is sent to. Under perfectly uniform routing every expert's share is k/E. An expert receives negligible traffic if its share is below 10% of that uniform share, that is below 0.1 · k/E.
 - **Seeds.** A criterion holds across seeds only if every seed meets it on its own. A pass by the mean over seeds alone does not count.
 - **Router consistency** (S0-F-21) is reported for every Task A run as a diagnostic, used at Gate A to explain a failure. It is not a pass or fail criterion, because the consistency a centralized model reaches is not yet known.
-- **Open:** whether "across all maps" in S0-A-01 means every map must reach 99% individually, or accuracy pooled over all maps must reach 99% (section 9).
+- **Per map** (decision D10, 2026-10-07). S0-A-01 and its precondition apply to each map's accuracy separately, not to accuracy pooled over maps, because a routing failure can break one map while the others pass. Accuracies used for these criteria are measured on a fixed held-out set of 2,048 sequences per map (about 38,000 scored positions per map), so that 99.9% is not decided by a handful of errors.
 
 If Task A fails, the method is considered broken in its current form and Task B is not run until the cause is understood. If Task A passes and Task B fails by a moderate margin, the result is still reported, with the gap quantified.
 
@@ -165,13 +165,18 @@ Decided by the owner on 2026-10-07:
 | D8 | Conventions inherited from CASSANDRA | Seeds 7, 11 and 19 (S0-N-03); no em or en dashes in project documents; raw run logs local and `RESULTS.md` committed (S0-N-08) |
 | D9 | Version control | Default branch `main`. Each PLAN step is developed on its own branch and merged by pull request after owner review |
 
+Decided by the owner later on 2026-10-07:
+
+| # | Decision | Outcome |
+|---|---|---|
+| D10 | Open item O1: "across all maps" in S0-A-01 | Every map individually, for both the criterion and the centralized precondition, measured on 2,048 held-out sequences per map (section 4.4) |
+
 Name availability, checked on 2026-10-07 by read-only lookups: PyPI has no project named `cassandra-chorus`, and Hugging Face has no user or organisation named `cassandra-chorus` and no model repository `mertefesensoy/cassandra-chorus` (or that repository is private). Neither check reserves the name.
 
 Still open:
 
 | # | Decision | Needed by |
 |---|---|---|
-| O1 | Whether "across all maps" in S0-A-01 means each map individually or pooled over maps | Before Task A runs |
 | O2 | Flower, Hivemind or custom networking | Start of Stage 1 |
 | O3 | Flagship model size, tokenizer and corpus | Start of Stage 2 |
 
