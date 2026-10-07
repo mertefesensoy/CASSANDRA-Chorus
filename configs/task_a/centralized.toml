@@ -1,7 +1,8 @@
 # PLAN step 4 part 2: the full centralized Task A matrix (owner decisions 2026-10-07).
 # Budget 5,000 steps of 64; final linear learning-rate decay over the last 20%.
 # Run once per variant and seed, for example:
-#   python -m scripts.train_task_a_centralized --config configs/task_a/centralized.toml #     --set run.seed=11 --set task_a.marked=false --set run.name=taskA-central-unmarked
+#   python -m scripts.train_task_a_centralized --config configs/task_a/centralized.toml
+#       --set run.seed=11 --set task_a.marked=false --set run.name=taskA-central-unmarked
 
 [run]
 name = "taskA-central-marked"
