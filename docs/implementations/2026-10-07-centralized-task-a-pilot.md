@@ -5,7 +5,7 @@
 | PLAN step | 4 · Centralized baseline on Task A, part 1: pilot, diagnostic, budget proposal |
 | Branch | `stage0/04-centralized-task-a` (stacked on `stage0/03-task-a`) |
 | SRS requirements | S0-F-13 (centralized baseline; equal compute is set later), S0-F-20 (held-out accuracy of the full model), S0-F-24 (run log), S0-A-01 precondition (per map, D10), S0-N-03, S0-N-07, S0-N-08 |
-| Status | Planned |
+| Status | Implemented; pilot complete on the reference laptop, 2026-10-07 (see Verification and `RESULTS.md`). Full centralized matrix awaits owner approval of the budget |
 
 ## Problem / Motivation
 
@@ -127,9 +127,47 @@ Pilot (owner decision 2026-10-07): seed 7, marked variant, 5,000 steps of 64 seq
 
 ## Verification
 
-To be completed after implementation and the pilot runs.
+Run on 2026-10-07 on the reference laptop: NVIDIA GeForce RTX 4070 Laptop GPU (8 GB), Windows 11, Python 3.13.14, PyTorch 2.12.1+cu126.
 
-**Not tested:** to be completed.
+**1. Test suite.** `python -m pytest`: 143 passed, 0 skipped. That is the 119 tests of steps 1 to 3 plus 24 added in this step.
+
+- **Model changes** (`tests/test_model.py`):
+  - dense and sparse dispatch select identical experts and agree to 1e-5 on logits and gradients;
+  - a slice equals the masked full model **bitwise** in both modes, on CPU and on CUDA in `strict` mode;
+  - forward and backward run deterministically in `strict` mode on CUDA in both modes;
+  - a `select` hook that reproduces top-k changes nothing, forced selections are respected with gates from the router's logits, and invalid selections raise.
+- **Training loop** (`tests/test_train.py`):
+  - the warm-up schedule, optimizer settings, learning on Task A, and the stop on a non-finite loss;
+  - `derive_seed`;
+  - an end-to-end CPU run of the entry point, and the refusal of an inconsistent configuration before any run folder exists;
+  - a CUDA run with 1 and with 14 CPU threads gives **bitwise identical** final weights.
+- **Evaluation** (`tests/test_metrics_task_a.py`): an oracle scores exactly 1 and an always-wrong predictor 0; the map-by-expert table counts scored positions exactly; random selection is uniform over available experts and reproducible; the diagnostic has the right structure.
+
+**2. Pilot runs.** Two centralized runs, seed 7, marked variant, 5,000 steps of 64. The full record is the 2026-10-07 entry in `RESULTS.md`. In short:
+
+| | Balance coefficient 0 | Balance coefficient 0.01 |
+|---|---|---|
+| Gate set, every map | 1.00000 | 1.00000 |
+| Random routing | 0.4604 | 0.4856 |
+| One expert removed | 0.8656 to 0.9896 | 0.8912 to 0.9808 |
+| Least-used expert's token share | at least 0.116 | at least 0.236 |
+
+Both meet the precondition. Routing is necessary in the trained model, and no expert has negligible traffic even without the balance loss.
+
+**3. Reproducibility across processes.** Two 300-step runs of the same configuration in separate processes (`perfcheck-foreground`, `perfcheck-background`) gave identical gate accuracy, per-map accuracy, scored loss and diagnostic.
+
+**4. Performance findings during this step.**
+
+- PyTorch's default of 14 CPU threads made Task A steps much slower and erratic on this laptop: 91 ms median and 271 ms maximum with 14 threads, against 52 ms and 94 ms with 1 thread. `run.cpu_threads` now defaults to 1, and this was shown not to change CUDA results.
+- Jobs started in the background by the coding agent ran about 3 times slower than foreground jobs (48 s against 16 s for 300 steps).
+- Sustained step time was about 120 ms on the morning of 2026-10-07, while the laptop's power adapter was dropping out under load, and 77 ms in the evening after the BIOS update to G614JI.334, with no drop-outs.
+
+**Not tested:**
+
+- Seeds 11 and 19, and the unmarked variant. Both are part of the proposed full matrix.
+- Whether the post-convergence dips (up to 1.4 points on one map at a constant learning rate) could coincide with the final evaluation in other runs. Here both final evaluations were at 1.0.
+- Leave-one-out per layer (only "one expert removed from every layer" was run).
+- The two stopped runs: `20261007T033745Z` (first pilot attempt) and `20261007T040840Z` (first pilot 2 attempt). Each has no end record and is listed in `RESULTS.md` under engineering runs.
 
 ## Related Docs
 
