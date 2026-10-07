@@ -128,3 +128,56 @@ def test_set_cpu_threads_validation():
     for bad in (0, -1, True, 1.5):
         with pytest.raises(ValueError, match="cpu_threads"):
             repro.set_cpu_threads(bad)
+
+
+def test_final_decay_schedule():
+    cfg = OptimSection(lr=1e-3, warmup_steps=100, decay_fraction=0.2, final_lr_ratio=0.1)
+    total = 5000
+    assert lr_at(99, cfg, total) == pytest.approx(1e-3)  # warm-up ends
+    assert lr_at(3999, cfg, total) == pytest.approx(1e-3)  # still constant
+    assert lr_at(4000, cfg, total) == pytest.approx(1e-3 * (1 - 0.9 / 1000))  # first decayed step
+    assert lr_at(4499, cfg, total) == pytest.approx(1e-3 * (1 - 0.9 * 500 / 1000))
+    assert lr_at(4999, cfg, total) == pytest.approx(1e-4)  # last step reaches final_lr_ratio * lr
+    assert lr_at(4999, cfg) == pytest.approx(1e-3)  # no total given: no decay
+    rates = [lr_at(s, cfg, total) for s in range(100, total)]
+    assert all(b <= a for a, b in zip(rates, rates[1:]))  # non-increasing after warm-up
+
+
+def test_schedule_validation():
+    from cassandra_chorus.train import check_schedule
+
+    check_schedule(OptimSection(decay_fraction=0.2), 5000)
+    with pytest.raises(ValueError, match="before warm-up ends"):
+        check_schedule(OptimSection(warmup_steps=100, decay_fraction=0.99), 500)
+    with pytest.raises(ValueError, match="decay_fraction"):
+        check_schedule(OptimSection(decay_fraction=1.5), 5000)
+    with pytest.raises(ValueError, match="final_lr_ratio"):
+        check_schedule(OptimSection(final_lr_ratio=-0.1), 5000)
+
+
+def test_train_steps_applies_the_decay():
+    model = MoETransformer(TINY)
+    cfg = OptimSection(warmup_steps=1, decay_fraction=0.5, final_lr_ratio=0.1, batch_size=4)
+    optimizer = make_optimizer(model, cfg)
+    task = TaskA(TaskASection())
+    generator = torch.Generator().manual_seed(0)
+
+    def next_batch():
+        batch = task.sample(4, generator)
+        return batch.inputs, batch.targets
+
+    train_steps(model, optimizer, next_batch, 4, cfg, "cpu", start_step=0, total_steps=4)
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(cfg.lr * 0.1)  # last of 4 steps
+
+
+def test_matrix_config_matches_the_owner_decisions():
+    from cassandra_chorus.config import load_config
+    from scripts.train_task_a_centralized import CentralizedTaskAConfig
+
+    cfg = load_config(REPO_ROOT / "configs" / "task_a" / "centralized.toml", CentralizedTaskAConfig)
+    assert cfg.train.steps == 5000 and cfg.optim.batch_size == 64  # budget
+    assert cfg.optim.decay_fraction == 0.2 and cfg.optim.final_lr_ratio == 0.1
+    assert cfg.model.balance_coef == 0.0 and cfg.model.dispatch == "dense"
+    assert cfg.train.gate_n_per_map == 2048  # D10
+    pilot = load_config(REPO_ROOT / "configs" / "task_a" / "centralized_pilot.toml", CentralizedTaskAConfig)
+    assert pilot.optim.decay_fraction == 0.0  # the recorded pilots used a constant rate

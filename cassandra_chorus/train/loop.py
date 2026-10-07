@@ -24,6 +24,10 @@ class OptimSection:
     Weight decay defaults to 0: on a sliced worker, the router rows of experts
     it does not hold get no gradient, and decoupled decay would still shrink
     them, confounding the comparison with centralized training.
+
+    ``decay_fraction`` is the final share of the run over which the learning
+    rate falls linearly to ``final_lr_ratio * lr``; 0 means no decay. Task A
+    configurations set 0.2 (owner decision 2026-10-07).
     """
 
     lr: float = 1e-3
@@ -34,6 +38,8 @@ class OptimSection:
     warmup_steps: int = 100
     grad_clip: float = 1.0
     batch_size: int = 64
+    decay_fraction: float = 0.0
+    final_lr_ratio: float = 0.1
 
 
 @dataclasses.dataclass
@@ -54,10 +60,39 @@ def make_optimizer(model: nn.Module, cfg: OptimSection) -> torch.optim.AdamW:
     )
 
 
-def lr_at(step: int, cfg: OptimSection) -> float:
-    """Linear warm-up to ``lr`` over ``warmup_steps`` (step counted from 0), then constant."""
+def decay_start(cfg: OptimSection, total_steps: int) -> int:
+    """First step of the final decay (``total_steps`` if there is none)."""
+    return total_steps - round(cfg.decay_fraction * total_steps)
+
+
+def check_schedule(cfg: OptimSection, total_steps: int) -> None:
+    """Raise ``ValueError`` if the schedule is inconsistent for a run of ``total_steps``."""
+    if not 0.0 <= cfg.decay_fraction <= 1.0:
+        raise ValueError("decay_fraction must be in [0, 1]")
+    if not 0.0 <= cfg.final_lr_ratio <= 1.0:
+        raise ValueError("final_lr_ratio must be in [0, 1]")
+    if cfg.decay_fraction > 0 and decay_start(cfg, total_steps) < cfg.warmup_steps:
+        raise ValueError(
+            f"the final decay would start at step {decay_start(cfg, total_steps)}, before warm-up ends "
+            f"at step {cfg.warmup_steps}"
+        )
+
+
+def lr_at(step: int, cfg: OptimSection, total_steps: int | None = None) -> float:
+    """Learning rate at global ``step`` (counted from 0).
+
+    Linear warm-up to ``lr`` over ``warmup_steps``; then constant; then, if
+    ``decay_fraction > 0`` and ``total_steps`` is given, linear decay over the
+    last ``round(decay_fraction * total_steps)`` steps, reaching
+    ``final_lr_ratio * lr`` at the final step ``total_steps - 1``.
+    """
     if cfg.warmup_steps > 0 and step < cfg.warmup_steps:
         return cfg.lr * (step + 1) / cfg.warmup_steps
+    if cfg.decay_fraction > 0 and total_steps is not None:
+        start = decay_start(cfg, total_steps)
+        if step >= start:
+            progress = (step - start + 1) / (total_steps - start)
+            return cfg.lr * (1.0 - (1.0 - cfg.final_lr_ratio) * min(progress, 1.0))
     return cfg.lr
 
 
@@ -70,6 +105,7 @@ def train_steps(
     device: torch.device | str,
     start_step: int = 0,
     expert_mask=None,
+    total_steps: int | None = None,
 ) -> TrainStats:
     """Run ``n_steps`` optimizer steps; return what was processed.
 
@@ -86,7 +122,7 @@ def train_steps(
     ce_sum = balance_sum = scored = torch.zeros((), device=device)  # accumulated on the device
     for i in range(n_steps):
         for group in optimizer.param_groups:
-            group["lr"] = lr_at(start_step + i, cfg)
+            group["lr"] = lr_at(start_step + i, cfg, total_steps)
         inputs, targets = next_batch()
         inputs, targets = inputs.to(device), targets.to(device)
         out = model(inputs, targets=targets, expert_mask=expert_mask)

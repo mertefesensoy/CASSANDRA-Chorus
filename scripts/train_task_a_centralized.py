@@ -28,7 +28,7 @@ from cassandra_chorus.data import TaskA, TaskASection, bayes_optimal_accuracy
 from cassandra_chorus.metrics import evaluate_task_a, routing_necessity
 from cassandra_chorus.model import ModelSection, MoETransformer, count_parameters
 from cassandra_chorus.runlog import RunLogger, make_run_id
-from cassandra_chorus.train import OptimSection, make_optimizer, train_steps
+from cassandra_chorus.train import OptimSection, check_schedule, make_optimizer, train_steps
 
 PRECONDITION = 0.999  # SRS S0-A-01 precondition, per map (D10); meaningful for the marked variant
 
@@ -62,6 +62,11 @@ def check_consistency(cfg: CentralizedTaskAConfig, task: TaskA) -> None:
         problems.append(f"model.context_length is {cfg.model.context_length} but task_a.seq_len is {cfg.task_a.seq_len}")
     if cfg.train.steps < 1 or cfg.train.eval_every < 1:
         problems.append("train.steps and train.eval_every must be positive")
+    else:
+        try:
+            check_schedule(cfg.optim, cfg.train.steps)
+        except ValueError as exc:
+            problems.append(str(exc))
     if problems:
         raise ValueError("inconsistent configuration: " + "; ".join(problems))
 
@@ -120,7 +125,9 @@ def main(argv: list[str] | None = None) -> int:
                 if device.type == "cuda":
                     torch.cuda.synchronize()
                 t0 = time.perf_counter()
-                stats = train_steps(model, optimizer, next_batch, n, cfg.optim, device, start_step=step)
+                stats = train_steps(
+                    model, optimizer, next_batch, n, cfg.optim, device, start_step=step, total_steps=cfg.train.steps
+                )
                 if device.type == "cuda":
                     torch.cuda.synchronize()
                 train_seconds += time.perf_counter() - t0
