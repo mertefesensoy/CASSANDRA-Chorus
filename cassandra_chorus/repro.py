@@ -20,6 +20,7 @@ then :func:`seed_everything` and :func:`apply_determinism`.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import platform
 import random
@@ -98,6 +99,17 @@ def seed_everything(seed: int) -> dict[str, int]:
     np.random.seed(seed)
     torch.manual_seed(seed)
     return {"python_random": seed, "numpy_global": seed, "torch": seed}
+
+
+def derive_seed(seed: int, label: str) -> int:
+    """A seed for a separate random stream, reproducible from ``seed`` and ``label``.
+
+    The first 8 bytes of SHA-256 of ``"<seed>/<label>"`` as an unsigned integer,
+    modulo 2**63. Different labels give unrelated seeds, so for example the
+    training-data stream is independent of model initialization.
+    """
+    digest = hashlib.sha256(f"{seed}/{label}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") % 2**63
 
 
 def environment_info() -> dict[str, Any]:

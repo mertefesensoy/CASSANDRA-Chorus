@@ -1,0 +1,48 @@
+# PLAN step 4 pilot: centralized training on Task A, marked variant, seed 7.
+# Run twice (owner decision 2026-10-07): as is (balance_coef = 0), and with
+#   --set model.balance_coef=0.01 --set run.name=taskA-central-pilot-bal001
+
+[run]
+name = "taskA-central-pilot-bal0"
+seed = 7
+device = "cuda"
+determinism = "warn"
+
+[model]
+vocab_size = 34          # 26 symbols + 8 map markers
+context_length = 64
+d_model = 128
+n_layers = 4
+n_heads = 4
+expert_hidden = 256
+n_experts = 8
+top_k = 2
+balance_coef = 0.0
+attention = "explicit"
+dispatch = "dense"       # owner decision 2026-10-07: dense for Task A
+
+[task_a]
+n_maps = 8
+n_symbols = 26
+seq_len = 64
+marked = true
+task_seed = 20261007
+
+[optim]
+lr = 1e-3
+beta1 = 0.9
+beta2 = 0.95
+weight_decay = 0.0
+warmup_steps = 100
+grad_clip = 1.0
+batch_size = 64
+
+[train]
+steps = 5000
+eval_every = 250
+curve_n_per_map = 256
+curve_seed = 1001
+gate_n_per_map = 2048
+gate_seed = 1002
+diagnostic_seed = 2001
+save_model = true

@@ -226,8 +226,9 @@ def test_balance_loss_is_one_when_router_is_uniform():
 HELD = {0: [1, 3], 1: [0, 2, 3]}
 
 
-def test_slice_equals_full_model_under_matching_mask():
-    full = make()
+@pytest.mark.parametrize("dispatch", ["sparse", "dense"])
+def test_slice_equals_full_model_under_matching_mask(dispatch):
+    full = make(dataclasses.replace(TINY, dispatch=dispatch))
     part = slice_from_full(full, HELD)
     assert part.held_experts() == {0: (1, 3), 1: (0, 2, 3)}
     idx, targets = tokens(), tokens(seed=2)
@@ -289,8 +290,8 @@ def test_sdpa_matches_explicit_attention():
 # ---------------------------------------------------------------- CUDA: determinism
 
 
-def train_step_checksum(device: str) -> str:
-    model = make(device=device)
+def train_step_checksum(device: str, dispatch: str = "sparse") -> str:
+    model = make(dataclasses.replace(TINY, dispatch=dispatch), device=device)
     out = model(tokens(device=device), targets=tokens(seed=2, device=device))
     out.loss.backward()
     digest = hashlib.sha256(out.logits.detach().cpu().numpy().tobytes())
@@ -302,11 +303,12 @@ def train_step_checksum(device: str) -> str:
 @requires_cuda
 @pytest.mark.gpu
 @pytest.mark.usefixtures("restore_torch_determinism")
-def test_strict_mode_runs_and_is_bit_identical_on_cuda():
+@pytest.mark.parametrize("dispatch", ["sparse", "dense"])
+def test_strict_mode_runs_and_is_bit_identical_on_cuda(dispatch):
     # strict mode raises on any operation without a deterministic kernel, so this
     # also proves that forward and backward use only deterministic kernels.
     repro.apply_determinism("strict")
-    assert train_step_checksum("cuda") == train_step_checksum("cuda")
+    assert train_step_checksum("cuda", dispatch) == train_step_checksum("cuda", dispatch)
 
 
 @requires_cuda
@@ -323,9 +325,10 @@ def test_warn_mode_reports_nothing_for_explicit_attention_on_cuda():
 @requires_cuda
 @pytest.mark.gpu
 @pytest.mark.usefixtures("restore_torch_determinism")
-def test_slice_equals_full_model_on_cuda():
+@pytest.mark.parametrize("dispatch", ["sparse", "dense"])
+def test_slice_equals_full_model_on_cuda(dispatch):
     repro.apply_determinism("strict")
-    full = make(device="cuda")
+    full = make(dataclasses.replace(TINY, dispatch=dispatch), device="cuda")
     part = slice_from_full(full, HELD)
     idx, targets = tokens(device="cuda"), tokens(seed=2, device="cuda")
     a = full(idx, targets=targets, expert_mask=HELD)
@@ -336,3 +339,64 @@ def test_slice_equals_full_model_on_cuda():
     full_grads = dict(full.named_parameters())
     for name, param in part.named_parameters():
         assert torch.equal(param.grad, full_grads[name].grad), name
+
+
+# ---------------------------------------------------------------- dispatch modes and the select hook
+
+
+def test_dense_dispatch_matches_sparse():
+    sparse = make()
+    dense = make(dataclasses.replace(TINY, dispatch="dense"))
+    dense.load_state_dict(sparse.state_dict())
+    idx, targets = tokens(), tokens(seed=2)
+    a = sparse(idx, targets=targets, expert_mask=HELD, return_routing=True)
+    b = dense(idx, targets=targets, expert_mask=HELD, return_routing=True)
+    assert all(torch.equal(x, y) for x, y in zip(a.routing, b.routing))  # same selection
+    assert torch.allclose(a.logits, b.logits, atol=1e-5, rtol=1e-4)
+    a.loss.backward()
+    b.loss.backward()
+    dense_params = dict(dense.named_parameters())
+    for name, param in sparse.named_parameters():
+        other = dense_params[name].grad
+        if param.grad is None:  # experts masked out: no gradient in either mode
+            assert other is None, name
+        else:
+            assert torch.allclose(param.grad, other, atol=1e-5, rtol=1e-3), name
+
+
+def test_select_hook_reproducing_topk_changes_nothing():
+    model = make()
+    idx = tokens()
+    topk = lambda layer, logits: logits.topk(2, dim=-1).indices  # noqa: E731
+    assert torch.equal(model(idx).logits, model(idx, select=topk).logits)
+
+
+def test_select_hook_controls_routing_and_gates_use_router_logits():
+    torch.manual_seed(0)
+    layer = MoELayer(d_model=16, hidden=8, n_experts=4, top_k=2, held=range(4))
+    x = torch.randn(1, 5, 16)
+    forced = torch.tensor([[2, 3]] * 5)
+    result = layer(x, select=lambda logits: forced)
+    assert torch.equal(result.top_idx.reshape(-1, 2), forced)
+    router_logits = layer.router(x.reshape(-1, 16))
+    assert torch.allclose(result.gates.reshape(-1, 2), torch.softmax(router_logits[:, [2, 3]], dim=-1))
+
+
+@pytest.mark.parametrize(
+    ("chosen", "message"),
+    [
+        (lambda n: torch.tensor([[0, 1, 2]] * n), "shape"),
+        (lambda n: torch.tensor([[0, 3]] * n), "unavailable"),
+        (lambda n: torch.tensor([[1, 1]] * n), "distinct"),
+    ],
+)
+def test_select_hook_is_validated(chosen, message):
+    torch.manual_seed(0)
+    layer = MoELayer(d_model=16, hidden=8, n_experts=4, top_k=2, held=[0, 1, 2])
+    with pytest.raises(ValueError, match=message):
+        layer(torch.randn(1, 3, 16), select=lambda logits: chosen(3))
+
+
+def test_invalid_dispatch():
+    with pytest.raises(ValueError, match="dispatch"):
+        MoELayer(d_model=16, hidden=8, n_experts=4, top_k=2, held=range(4), dispatch="fast")

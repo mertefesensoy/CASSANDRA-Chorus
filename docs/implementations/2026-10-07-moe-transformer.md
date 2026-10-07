@@ -66,6 +66,8 @@ For each token, the router computes E logits. An expert is **available** if the 
 
 Tokens are flattened. For each available expert, in ascending global index, the tokens that selected it are gathered, passed through the expert, multiplied by their gate weight and added back with `index_add_`. Within one expert each token appears at most once, and experts are processed in a fixed order, so the result does not depend on scheduling. In the step 1 check, `index_add_` produced no non-determinism warning on CUDA in PyTorch 2.12.1. A dense reference (every expert on every token, weighted by a gate that is zero outside the selected k) exists only in the tests, to check the sparse path.
 
+**Later change (2026-10-07, owner decision):** a dense dispatch mode was added as a configuration option (`dispatch = "dense"`, used for Task A), and an optional `select` hook for diagnostics. See `docs/implementations/2026-10-07-centralized-task-a-pilot.md`.
+
 ### Attention implementation
 
 Configurable: `explicit` (scores, causal mask, softmax, product; the default) or `sdpa` (PyTorch's fused `scaled_dot_product_attention`). A check on the reference GPU on 2026-10-07 found that in fp32 the fused path uses the memory-efficient kernel. In `warn` mode, PyTorch reports that this kernel's backward pass "defaults to a non-deterministic algorithm"; in `strict` mode it ran deterministically without error. The explicit path ran with no warning in `warn` mode. Its forward output differed from the fused path by at most 1.8e-6 on random inputs. The explicit path is therefore the default, honouring the owner's choice of deterministic kernels wherever they exist; `sdpa` is available for speed in Task B, and its warning would be recorded in the run log.

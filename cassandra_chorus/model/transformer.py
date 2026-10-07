@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Literal
 
 import torch
@@ -39,6 +39,7 @@ class ModelSection:
     dropout: float = 0.0
     rope_base: float = 10000.0
     attention: Literal["explicit", "sdpa"] = "explicit"
+    dispatch: Literal["sparse", "dense"] = "sparse"
     init_std: float = 0.02
 
 
@@ -116,12 +117,17 @@ class Block(nn.Module):
             cfg.d_model, cfg.n_heads, cfg.context_length, cfg.rope_base, cfg.dropout, cfg.attention
         )
         self.norm2 = nn.RMSNorm(cfg.d_model, eps=1e-6)
-        self.moe = MoELayer(cfg.d_model, cfg.expert_hidden, cfg.n_experts, cfg.top_k, held)
+        self.moe = MoELayer(cfg.d_model, cfg.expert_hidden, cfg.n_experts, cfg.top_k, held, cfg.dispatch)
         self.drop = nn.Dropout(cfg.dropout)
 
-    def forward(self, x: torch.Tensor, allowed: Iterable[int] | None) -> tuple[torch.Tensor, MoEResult]:
+    def forward(
+        self,
+        x: torch.Tensor,
+        allowed: Iterable[int] | None,
+        select: Callable[[torch.Tensor], torch.Tensor] | None = None,
+    ) -> tuple[torch.Tensor, MoEResult]:
         x = x + self.attn(self.norm1(x))
-        routed = self.moe(self.norm2(x), allowed)
+        routed = self.moe(self.norm2(x), allowed, select)
         return x + self.drop(routed.output), routed
 
 
@@ -152,12 +158,15 @@ class MoETransformer(nn.Module):
         targets: torch.Tensor | None = None,
         expert_mask: HeldExperts | None = None,
         return_routing: bool = False,
+        select: Callable[[int, torch.Tensor], torch.Tensor] | None = None,
     ) -> ModelOutput:
         """Run the model on token indices ``idx`` of shape ``[B, T]``.
 
         ``expert_mask`` optionally restricts routing per layer to the given
         global experts (layers not named are unrestricted). Targets equal to
-        -100 are ignored by the cross-entropy.
+        -100 are ignored by the cross-entropy. ``select(layer, logits)``, used
+        only by diagnostics, replaces top-k selection in every layer (see
+        :meth:`MoELayer.forward`).
         """
         if idx.dim() != 2:
             raise ValueError(f"idx must have shape [B, T], got {tuple(idx.shape)}")
@@ -172,7 +181,8 @@ class MoETransformer(nn.Module):
         routed: list[MoEResult] = []
         for layer, block in enumerate(self.blocks):
             allowed = None if expert_mask is None else expert_mask.get(layer)
-            x, result = block(x, allowed)
+            layer_select = None if select is None else (lambda logits, layer=layer: select(layer, logits))
+            x, result = block(x, allowed, layer_select)
             routed.append(result)
         logits = self.head(self.norm(x))
 
