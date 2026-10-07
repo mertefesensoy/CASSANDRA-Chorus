@@ -99,3 +99,32 @@ def test_entry_point_rejects_inconsistent_config(tmp_path):
     result = subprocess.run(args, cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=300)
     assert result.returncode != 0 and "Task A needs 34" in result.stderr
     assert not list(tmp_path.iterdir())  # failed before creating a run folder
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs a CUDA GPU")
+def test_cpu_thread_count_does_not_change_cuda_results(tmp_path):
+    def final_model_bytes(threads: int) -> bytes:
+        runs = tmp_path / f"t{threads}"
+        args = [sys.executable, "-m", "scripts.train_task_a_centralized", "--config", "configs/task_a/centralized_pilot.toml"]
+        for o in [f"run.cpu_threads={threads}", "run.name=threads", "model.d_model=32", "model.n_layers=2",
+                  "model.expert_hidden=32", "train.steps=20", "train.eval_every=10", "train.curve_n_per_map=2",
+                  "train.gate_n_per_map=2", "optim.batch_size=16"]:
+            args += ["--set", o]
+        env = {**os.environ, RUNS_DIR_ENV: str(runs)}
+        env.pop("CUBLAS_WORKSPACE_CONFIG", None)
+        result = subprocess.run(args, cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=300)
+        assert result.returncode == 0, result.stderr
+        (run_dir,) = list(runs.iterdir())
+        header = json.loads((run_dir / "log.jsonl").read_text(encoding="utf-8").splitlines()[0])
+        assert header["environment"]["cpu_threads"] == threads
+        state = torch.load(run_dir / "final_model.pt")
+        return b"".join(state[k].cpu().numpy().tobytes() for k in sorted(state))
+
+    assert final_model_bytes(1) == final_model_bytes(14)
+
+
+def test_set_cpu_threads_validation():
+    for bad in (0, -1, True, 1.5):
+        with pytest.raises(ValueError, match="cpu_threads"):
+            repro.set_cpu_threads(bad)

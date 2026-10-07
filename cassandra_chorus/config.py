@@ -41,12 +41,18 @@ class RunSection:
     ``name`` becomes part of the run ID, so it is limited to letters, digits,
     ``.``, ``_`` and ``-`` (checked when the run folder is created).
     ``determinism`` is explained in :mod:`cassandra_chorus.repro`.
+    ``cpu_threads`` is PyTorch's CPU thread count; 1 by default because the
+    CPU work of a CUDA run is tiny and extra threads slowed GPU steps on the
+    reference laptop (see the step 4 implementation doc). On a CUDA run it does
+    not change results (the CPU only samples and counts integers); on device
+    ``cpu`` the model's float arithmetic may round differently with it.
     """
 
     name: str
     seed: int = 7
     device: Device = "cuda"
     determinism: DeterminismMode = "warn"
+    cpu_threads: int = 1
     notes: str = ""
 
 

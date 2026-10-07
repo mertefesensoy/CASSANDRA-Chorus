@@ -62,6 +62,17 @@ def prepare_process(mode: str) -> None:
     os.environ.setdefault(CUBLAS_ENV, CUBLAS_DETERMINISTIC_VALUE)
 
 
+def set_cpu_threads(n: int) -> None:
+    """Set PyTorch's CPU thread count (intra-op parallelism).
+
+    Results of CUDA runs do not depend on it; on the CPU, float reductions may
+    be split differently and round differently.
+    """
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ValueError(f"cpu_threads must be a positive integer, got {n!r}")
+    torch.set_num_threads(n)
+
+
 def apply_determinism(mode: str) -> dict[str, Any]:
     """Configure PyTorch for ``mode`` and return the settings now in force.
 
@@ -138,6 +149,7 @@ def environment_info() -> dict[str, Any]:
         "torch_cuda": torch.version.cuda,
         "cudnn": torch.backends.cudnn.version() if torch.backends.cudnn.is_available() else None,
         "numpy": np.__version__,
+        "cpu_threads": torch.get_num_threads(),
         "cuda_available": cuda_available,
         "gpu": gpu,
         "env": {name: os.environ.get(name) for name in _RECORDED_ENV},

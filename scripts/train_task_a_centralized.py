@@ -82,6 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     task = TaskA(cfg.task_a)
     check_consistency(cfg, task)
     repro.prepare_process(cfg.run.determinism)  # before any CUDA work
+    repro.set_cpu_threads(cfg.run.cpu_threads)
     device = resolve_device(cfg.run.device)
     n_maps = cfg.task_a.n_maps
 
