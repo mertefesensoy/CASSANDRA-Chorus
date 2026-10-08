@@ -5,7 +5,7 @@
 | PLAN step | 8 · Metrics: accuracy, router consistency, expert usage, expert drift; per-run report and results tables |
 | Branch | `stage0/08-metrics` (stacked on `stage0/07-local-averaging`) |
 | SRS requirements | S0-F-20 to S0-F-24, S0-F-27, S0-A-01 to S0-A-06; decisions D10, D22, D23 |
-| Status | Planned |
+| Status | Implemented; report produced for the main arm (see `RESULTS.md`) |
 
 ## Problem / Motivation
 
@@ -30,11 +30,11 @@ So step 8 is an analysis module plus a report script, and no run needs repeating
 
 | File | Description |
 |---|---|
-| `cassandra_chorus/metrics/routing.py` | `router_consistency` (normalized mutual information), `top2_share`, `js_divergence`, `expert_drift`, `negligible_experts`, `routing_necessity`. |
+| `cassandra_chorus/metrics/routing.py` | `router_consistency` (normalized mutual information), `top2_share`, `js_divergence`, `expert_drift`, `negligible_experts`, `routing_necessity_gap` (named apart from the step 4 diagnostic `metrics.task_a.routing_necessity`, which measures the accuracies it subtracts). |
 | `cassandra_chorus/metrics/gate_a.py` | Reading runs from logs, choosing the run for each arm, variant and seed, building result rows, and evaluating S0-A-01 to S0-A-06. |
 | `cassandra_chorus/metrics/__init__.py` | Public names. |
-| `scripts/analyze_task_a.py` | Writes `results/task_a_gate_a.md`: one table per arm (S0-F-23) and the criteria verdicts. |
-| `tests/test_metrics_routing.py`, `tests/test_gate_a.py` | Tests below. |
+| `scripts/analyze_task_a.py` | Writes `results/task_a_gate_a.md`: the criteria verdicts per seed, the D23 necessity ratios, one table per arm (S0-F-23) and the metric definitions. |
+| `tests/test_metrics_routing.py`, `tests/test_gate_a.py` | Tests below; `test_gate_a.py` also runs the report script on synthetic run folders. |
 
 ## Implementation Approach
 
@@ -58,7 +58,7 @@ Pilots, check runs and stopped runs never match. If two completed runs claim the
 For each run, the row records:
 
 - **Accuracy:** gate accuracy and lowest map accuracy (S0-F-20).
-- **Routing necessity:** gate accuracy minus random-routing accuracy (D22).
+- **Routing necessity:** accuracy with the trained router minus accuracy with random routing, both on the curve set, as the step 4 diagnostic measures them (D22). The gate set is not re-scored under random routing, so subtracting from gate accuracy would mix two sets.
 - **Router consistency:** per layer, normalized mutual information on the gate set, plus the top-2 share (S0-F-21).
 - **Negligible experts:** per layer, the experts whose share of tokens over all positions is below 0.1 · k/E (S0-F-22, S0-A-03).
 - **Expert drift, sliced arms only:** per layer, the mean and maximum over experts of the holder-pair Jensen-Shannon divergence in the final round, and its mean over rounds (S0-F-27).
@@ -75,7 +75,7 @@ For each run, the row records:
 | S0-A-05 | Satisfied by configuration: each worker holds at most half the experts. The report checks the logged capacity |
 | S0-A-06 | Each criterion holds for every seed (7, 11 and 19) on its own |
 
-The report gives a verdict per criterion and seed and an overall Gate A line. If redundancy is evident (routing necessity of the main arm far below centralized), it adds the D23 recorded-finding paragraph. Comparison arms are reported for diagnosis only; the criteria apply to the main arm.
+The report gives a verdict per criterion and seed (pass, fail or missing) and an overall line: pass, fail, or incomplete while any run is missing. A missing run is never read as a pass. For D23 it always prints, per variant and seed, the main arm's necessity divided by the centralized run's; when any ratio is below 0.5 it adds the recorded-finding paragraph. Comparison arms are reported for diagnosis only; the criteria apply to the main arm.
 
 ## Mathematical / Statistical Details
 
@@ -96,7 +96,7 @@ Let C be a layer's map-by-expert count table over scored positions, where each o
   2. drift(e) is the mean of JS(P_h, P_h') over all pairs of such holders, defined when there are at least two.
   3. A layer's drift is the mean and the maximum of drift(e) over the experts where it is defined.
 - **Negligible traffic:** expert e's share is (tokens routed to e) / (all tokens, all positions). It is negligible when below 0.1 · k/E, which is 0.025 here.
-- **Routing necessity:** gate accuracy minus random-routing accuracy (random routing evaluated on the curve set; recorded as such).
+- **Routing necessity:** a_trained − a_random, both pooled accuracies on the curve set (256 sequences per map in the Gate A configs, against 2,048 for the gate set; same scoring rule). The D23 ratio is necessity(main) / necessity(centralized) for the same variant and seed.
 
 ## Design Decisions
 
@@ -106,12 +106,43 @@ Let C be a layer's map-by-expert count table over scored positions, where each o
 | Reading of a redundant pass | Pass with recorded finding | Fail on routing; margin criterion | Owner, 2026-10-08 (D23), before any Gate A run |
 | Run selection | By run name and completed status; refuse ambiguity | Latest run wins | Engineering default: no silent choice between runs |
 | Analysis only | Metrics computed from logs | Recompute from saved models | Engineering default: every needed quantity is logged; no reruns |
+| Necessity sets | Trained and random routing on the same (curve) set | Gate accuracy minus curve-set random routing | Engineering default: a difference must compare like with like; caught while writing the report |
+| When the D23 paragraph appears | Any seed's necessity ratio below 0.5; ratios always printed | No threshold, prose judgment; a stricter ratio | Engineering default. D23 sets no number, and this threshold changes no verdict: it only decides whether the paragraph is printed. The owner may set another at the gate review |
 
 ## Verification
 
-To be completed after implementation.
+Run on the RTX 4060 laptop (CPU only for these tests), Python 3.12, from the worktree on `stage0/08-metrics`:
 
-**Not tested:** to be completed.
+```bash
+python -m pytest tests/test_metrics_routing.py tests/test_gate_a.py -q
+```
+
+21 passed. They cover:
+
+- consistency at 0, at 1 and at the 2/3 ceiling, and its edge cases;
+- top-2 share, JS divergence against a hand computation, drift with single holders and unused columns;
+- the negligible threshold;
+- a full passing matrix;
+- S0-A-01 failing on one map;
+- S0-A-02 compared within a seed;
+- S0-A-03 failing on a starved expert;
+- missing runs giving an incomplete verdict;
+- the D23 flag raised without failing the gate;
+- run selection: stopped runs, pilots and check runs are ignored, and duplicate runs are refused by name;
+- a name and variant mismatch;
+- drift from round records, with a dropped worker skipped;
+- necessity taken from the curve set on both sides;
+- the report script on a full matrix and on a partial one.
+
+The full suite and the report on the real Gate A runs are recorded in `RESULTS.md` (Gate A main arm).
+
+```bash
+python -m scripts.analyze_task_a
+```
+
+This writes `results/task_a_gate_a.md`.
+
+**Not tested:** the report on the comparison arms with real runs (they have not been run yet). Expert drift checked only on synthetic tables and on the main-arm logs, with no independent recomputation from saved models.
 
 ## Related Docs
 
