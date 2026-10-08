@@ -1,0 +1,13 @@
+CASSANDRA Chorus
+Copyright 2026 Mert Efe Sensoy
+
+This product includes software developed as part of CASSANDRA Chorus, the
+volunteer-pool training phase of the CASSANDRA research program
+(https://github.com/mertefesensoy/CASSANDRA).
+
+Dataset provenance (data is NOT distributed with this repository):
+
+- text8 (Matt Mahoney's cleaned Wikipedia benchmark,
+  https://mattmahoney.net/dc/textdata.html); underlying text lineage is
+  Wikipedia (CC BY-SA / GFDL). Only preparation scripts and provenance
+  metadata ship here.
