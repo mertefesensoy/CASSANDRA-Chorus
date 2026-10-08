@@ -1,6 +1,6 @@
 # Task A · Gate A report
 
-Generated 2026-10-08 10:05 UTC by `python -m scripts.analyze_task_a` (code `284a6b4`) from the run logs in `C:\Users\senso\chorus-runs`. Criteria and their reading were registered before any Gate A run (SRS section 4.4, D10, D22, D23).
+Generated 2026-10-08 10:06 UTC by `python -m scripts.analyze_task_a` (code `a2e7875`) from the run logs in `C:\Users\senso\chorus-runs`. Criteria and their reading were registered before any Gate A run (SRS section 4.4, D10, D22, D23).
 
 ## Criteria verdict: PASS
 
@@ -58,4 +58,4 @@ S0-A-04 (Task B) is not part of Gate A. The criteria apply to the main arm; the 
 - **Consistency:** mutual information between map and chosen expert over scored gate-set positions, divided by the map entropy; 0 = routing ignores the map; ceiling 2/3 here.
 - **Necessity:** accuracy with the trained router minus accuracy with random routing, both on the curve set (the diagnostic does not re-score the gate set).
 - **Negligible:** experts whose token share in a layer is below 0.1 · k/E = 0.025.
-- **Drift:** per expert, mean Jensen-Shannon divergence (base 2) between the map mixes its holders sent it in the final round; mean over experts with two or more holders.
+- **Drift:** per expert, mean Jensen-Shannon divergence (base 2) between its holders' map mixes in the final round, where holders are the workers whose copy is merged (all workers in full-model averaging) and a map mix is how the worker's model routes the curve set to that expert after its local steps; mean over experts with two or more holders.
