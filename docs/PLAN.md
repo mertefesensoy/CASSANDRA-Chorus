@@ -71,6 +71,12 @@ Setting (owner decisions 2026-10-08, SRS D17 to D20):
 
 
 - Passes: continue to Task B.
+- **Registered on 2026-10-08, before any Gate A run (SRS D23).** If S0-A-01 to S0-A-03 pass but the merged experts are far more interchangeable than centralized ones, Gate A passes with a recorded finding:
+  - the redundancy is reported prominently as a limitation;
+  - its cause is diagnosed with the full-model and partial-update arms and the expert-drift metric;
+  - Task B must show whether it costs capacity (its bits-per-character gap).
+
+  This reading was fixed after a check run suggested redundancy (`RESULTS.md`, 2026-10-08 check runs), and before the Gate A matrix.
 - Fails on routing (router inconsistent or experts unused after merging): try the known remedies before giving up, one at a time and each recorded:
   - guaranteed expert coverage per round;
   - a load-balancing loss;

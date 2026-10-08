@@ -94,6 +94,9 @@ Reference parameters (decided 2026-10-07): M = 8 maps over an alphabet of V = 26
 
 - **S0-F-20** The system shall report, per run: loss and accuracy (Task A) or bits per character (Task B) on held-out data, for the merged full model with all experts active.
 - **S0-F-21** For Task A the system shall report router consistency: how consistently sequences from the same map are sent to the same experts.
+  - **Definition** (decision D22, 2026-10-08): per mixture layer, the mutual information between the map and the chosen expert over the scored positions of the gate set, counting each of a token's k choices once, divided by the entropy of the map. 0 means routing ignores the map. With E = M = 8 and k = 2 the ceiling is 2/3.
+  - The share of each map's choices going to its two most-used experts is reported beside it.
+  - **Routing necessity** is also reported: trained accuracy minus accuracy under random routing.
 - **S0-F-22** The system shall report expert usage balance, including the count of experts receiving negligible traffic.
 - **S0-F-27** For Task A, the system shall report expert drift: per mixture layer and round, how differently the same expert index is used across the workers that held it, computed from each worker's map-by-expert routing table. A diagnostic used to explain a failure at Gate A, not a pass or fail criterion. (Added in Draft 0.5, decision D16. The failure mode was named "expert semantic blurring" in FedAlign-MoE, arXiv 2603.21276, which the survey read only as an abstract.)
 - **S0-F-23** The system shall support sweeps over H, slice size, N and dropout probability, and produce one results table per sweep.
@@ -196,6 +199,8 @@ Decided by the owner on 2026-10-08, after a walk-through of the prior-work surve
 | D19 | Worker optimizer state | Fresh each round: workers keep no state between rounds |
 | D20 | Gate A assignment | Coverage as the main run, rolling as a second arm |
 | D21 | Partial-update router | Averaged over all workers (S0-F-26) |
+| D22 | Metric definitions | Router consistency as normalized mutual information, with top-2 share and routing necessity beside it (S0-F-21). Expert drift as the Jensen-Shannon divergence, base 2, between the map mixes that different holders sent to the same expert in a round (S0-F-27). Negligible traffic over all positions, as logged (S0-A-03) |
+| D23 | Gate A reading, registered before any Gate A run | If sliced runs pass S0-A-01 to S0-A-03 but their experts are far more interchangeable than centralized ones (much lower routing necessity), Gate A passes **with a recorded finding**. The redundancy is reported prominently as a limitation, and its cause is diagnosed with the full-model and partial-update arms and the drift metric. Task B's bits-per-character gap is where any cost in lost capacity must show (PLAN section 5) |
 
 Name availability, checked on 2026-10-07 by read-only lookups: PyPI has no project named `cassandra-chorus`, and Hugging Face has no user or organisation named `cassandra-chorus` and no model repository `mertefesensoy/cassandra-chorus` (or that repository is private). Neither check reserves the name.
 
