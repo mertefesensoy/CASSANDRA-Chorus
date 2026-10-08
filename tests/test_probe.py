@@ -5,6 +5,7 @@ import torch
 from cassandra_chorus.data.task_a import TaskA, TaskASection
 from cassandra_chorus.metrics.probe import (
     bypass_layer,
+    bypass_layers,
     competence,
     evaluate_reading,
     probe_model,
@@ -107,3 +108,17 @@ def test_reading_bypassed_and_mixed_and_incomplete():
     partial = matrix(summary([True], [0.9]), summary([True], [0.1]))
     del partial[("full", "unmarked", 19)]
     assert evaluate_reading(partial)["overall"] == "incomplete"
+
+
+def test_bypassing_every_layer_equals_a_model_without_mixtures():
+    m = model()
+    with torch.no_grad():
+        for block in m.blocks:
+            for e in range(CFG.n_experts):
+                block.moe.experts[str(e)].w2.weight.zero_()  # every mixture outputs zero already
+    silent = evaluate_task_a(m, BATCH, "cpu", TASK.cfg.n_maps)["per_map_accuracy"]
+    m2 = model()
+    with bypass_layers(m2, range(CFG.n_layers)):
+        bypassed = evaluate_task_a(m2, BATCH, "cpu", TASK.cfg.n_maps)["per_map_accuracy"]
+    assert bypassed == silent  # same weights outside the experts (same seed), so the same outputs
+    assert not any(block.moe._forward_hooks for block in m2.blocks)

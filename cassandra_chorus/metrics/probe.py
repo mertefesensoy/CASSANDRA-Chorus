@@ -31,17 +31,23 @@ NEEDED_POINTS = 5.0   # a layer is needed if bypassing it costs at least 5 point
 
 
 @contextlib.contextmanager
-def bypass_layer(model, layer: int) -> Iterator[None]:
-    """Within the block, layer ``layer``'s mixture output is zeros; the hook is always removed."""
+def bypass_layers(model, layers: Sequence[int]) -> Iterator[None]:
+    """Within the block, the mixture output of every layer in ``layers`` is zeros; the hooks are always removed."""
 
     def hook(module, inputs, result):
         return dataclasses.replace(result, output=torch.zeros_like(result.output))
 
-    handle = model.blocks[layer].moe.register_forward_hook(hook)
+    handles = [model.blocks[layer].moe.register_forward_hook(hook) for layer in layers]
     try:
         yield
     finally:
-        handle.remove()
+        for handle in handles:
+            handle.remove()
+
+
+def bypass_layer(model, layer: int):
+    """One layer's mixture output is zeros (the registered probe's bypass)."""
+    return bypass_layers(model, [layer])
 
 
 def probe_model(model, batch: TaskABatch, device: torch.device | str, n_maps: int) -> dict[str, Any]:
