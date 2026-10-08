@@ -152,3 +152,87 @@ Router consistency is the normalized mutual information between map and chosen e
 | `20261007T035512Z_perfcheck-foreground_s7`, `20261007T035552Z_perfcheck-background_s7` | 300-step timing checks, same configuration, foreground and background | 16 s versus 48 s of training. **Gate accuracy, per-map accuracy, loss and diagnostic identical between the two processes** |
 | `20261007T040840Z_taskA-central-pilot-bal001_s7` | First pilot 2 attempt | Stopped by hand at step 3,750 when the laptop's power adapter was found dropping out under load; no end record. Superseded by `20261007T144407Z` |
 | `20261007T144107Z_powertest_s7` | 1,500-step load test after the BIOS update to G614JI.334, with a watchdog ready to stop it on any adapter drop-out | No drop-out during the test or the pilot 2 run that followed (morning baseline: 2 to 6 per minute under the same load) |
+
+## 2026-10-08 · Gate A, main arm: sliced training against centralized on Task A
+
+**Purpose.** The Gate A criteria of SRS section 4.4 on the main arm (D18, D20). Criteria, metric definitions (D22) and the reading of a pass with redundant experts (D23) were all registered before the first of these runs. Four comparison arms (rolling assignment, router over all workers, partial update, full-model averaging) diagnose the finding; they are not criteria.
+
+**Setup.**
+
+- Same hardware, software and model as the centralized matrix: RTX 4070 Laptop GPU, PyTorch 2.12.1+cu126, Python 3.13.14, 3,421,824 parameters (276,096 shared, 3,145,728 in experts), dense dispatch, `warn` determinism, 1 CPU thread.
+- Gate A setting (D18): 4 workers, each holding 4 of the 8 experts in every layer, coverage assignment, 125 local steps per round, 10 rounds. Total 5,000 worker steps of 64 sequences, equal to one centralized run (D17). Router rows averaged over holders (D11), plain averaging, fresh AdamW each round with the learning-rate schedule along each worker's trajectory (D19). No drops, no skew.
+- Configuration `configs/task_a/sliced.toml`, commit `f8ac7ef`, clean working tree for every run. Queue `configs/queues/gate_a_main.toml`; after the travel stop, the rest ran from a local queue outside the repository (`gate_a_main_resume.toml`: `--resume` of run 1, then the same five entries).
+- Command: `python -m scripts.train_task_a_sliced --config configs/task_a/sliced.toml --set run.seed=<seed> --set task_a.marked=<true|false> --set run.name=taskA-sliced-coverage-<marked|unmarked>`.
+- Analysis: `python -m scripts.analyze_task_a` (commit of the analysis code in the report header). Full tables, per-layer numbers and run IDs: `results/task_a_gate_a.md`.
+
+**Criteria verdict: every Gate A criterion is met on the main arm, with the D23 recorded finding.** The gate decision itself is the owner's, at PLAN step 9.
+
+| Criterion | Seed 7 | Seed 11 | Seed 19 |
+|---|---|---|---|
+| Precondition: every map of centralized marked at least 0.999 | 1.00000 | 1.00000 | 1.00000 |
+| S0-A-01: every map of sliced marked at least 0.99 | 1.00000 | 1.00000 | 1.00000 |
+| S0-A-02: sliced unmarked within 2 points of centralized, same seed | −0.018 points | −0.009 points | −0.037 points |
+| S0-A-03: no expert below 0.025 of tokens in any layer (least-used share, both variants) | 0.136 | 0.113 | 0.162 |
+| S0-A-05: experts held per worker, of 8 | 4 | 4 | 4 |
+
+S0-A-06 (every seed on its own) holds for each row. S0-A-04 is Task B's.
+
+**The recorded finding: the merged experts are close to interchangeable.**
+
+| Variant | Arm | Gate accuracy | Random routing (worst map) | One expert removed from every layer | Necessity | Necessity, sliced / centralized |
+|---|---|---|---|---|---|---|
+| marked | centralized | 1.00000 (all seeds) | 0.463 to 0.491 (0.323 to 0.404) | 0.819 to 0.999 | 0.509 to 0.537 | |
+| marked | sliced | 1.00000 (all seeds) | 0.950 to 0.959 (0.903 to 0.954) | 1.0000 for every expert, every seed | 0.041 to 0.050 | 0.08 to 0.10 |
+| unmarked | centralized | 0.9507 to 0.9511 | 0.168 to 0.283 (0.131 to 0.217) | 0.821 to 0.914 | 0.668 to 0.784 | |
+| unmarked | sliced | 0.9506 to 0.9510 | 0.907 to 0.913 (0.886 to 0.902) | 0.9497 to 0.9520 | 0.039 to 0.044 | 0.06 |
+
+Random routing, removal and necessity are on the curve set (256 sequences per map); gate accuracy on the gate set (2,048 per map).
+
+**What this shows (this model size, budget and setting; three seeds):**
+
+1. **Every Gate A criterion is met on every seed.** Sliced training matches centralized accuracy: every map perfect on the marked variant, and within 0.04 points of centralized (0.05 of the Bayes ceiling 0.95106) on the unmarked one. No expert is starved.
+2. **The experts it produces are much more interchangeable than centralized ones, on every seed and both variants.** Routing tokens at random keeps 95% to 96% accuracy (marked) and 91% (unmarked, against 95% trained). Removing any single expert from every layer costs at most 0.07 points, against up to 18 points centralized. This is the pattern seen in the one-seed check run, now at the full budget on three seeds. By D23 it does not change the verdict; it is a limitation to diagnose, and Task B must show whether it costs capacity.
+3. **The router still separates maps, at least as strongly as centralized.** Router consistency in layers 1 and 2 is 0.27 to 0.46 for sliced against 0.12 to 0.37 centralized (ceiling 2/3), and the two most-chosen experts take 68% to 84% of each map's traffic there. So routing is map-dependent, but the experts it chooses between can each do the job.
+4. **The two holders of each expert route similar maps to it.** Expert drift in the final round is at most 0.14 per layer on average and 0.24 at worst, on a scale where 1 means disjoint map mixes. Drift compares how each holder's model routes the curve set after its local steps, a proxy for what it trained the expert on (step 8 doc). The comparison arms below show that drift does not track the redundancy.
+
+**Comparison arms (D20, D23): where the redundancy comes from.**
+
+Each arm changes one thing from the main arm, with the same Gate A setting and the same number of worker steps and sequences (D17), seeds 7, 11 and 19, both variants. They are 24 runs from `configs/queues/gate_a_comparison.toml` (step 7), run from a byte-identical copy outside the repository on commit `f8ac7ef` (clean), the same code as the main arm.
+
+| Arm | What changes from the main arm | Necessity / centralized (marked; unmarked) | Worst single-expert removal, points (marked; unmarked) |
+|---|---|---|---|
+| Centralized | (reference) | 1; 1 | 8.62 to 18.10; 8.00 to 13.04 |
+| Sliced, coverage (main) | | 0.08 to 0.10; 0.06 | 0.00; 0.03 to 0.07 |
+| Sliced, rolling | assignment shifts by one expert each round | 0.15 to 0.16; 0.17 to 0.18 | 0.00 to 0.01; 0.02 to 0.05 |
+| Sliced, router over all | router rows averaged over all workers | 0.05 to 0.07; 0.05 | 0.00; 0.00 to 0.04 |
+| Partial update | every worker routes over all 8 experts; still updates only its 4 (router over all, D21) | 0.56 to 0.70; 0.61 to 0.67 | 1.17 to 11.08; 3.51 to 6.05 |
+| Full-model averaging | every worker holds, routes over and updates all 8 (router over all) | 0.64 to 0.76; 0.72 to 0.80 | 2.82 to 9.63; 5.02 to 5.75 |
+
+Necessity and removal on the curve set, ranges over seeds; full table with run IDs in `results/task_a_gate_a.md` ("Arms side by side").
+
+The arms are equal in steps and sequences, not in memory or computation. A partial or full worker holds all 8 experts, twice the expert parameters of a sliced worker. Each token still uses 2 experts, but the dense dispatch used for Task A evaluates every available expert, so here these arms also did about twice the expert computation per step. Partial update keeps optimizer state for its 4 experts; full averaging for all 8.
+
+**What the comparison shows (this setting; three seeds per cell):**
+
+5. **Every arm meets the accuracy criteria.** Lowest marked map 0.99987 over all 36 runs; unmarked gate accuracy within 0.06 points of the Bayes ceiling in every arm; no negligible expert anywhere (least-used share 0.039 or more).
+6. **The arms fall into two groups, split by whether a worker routes over all experts.** Where routing during local training is limited to the worker's slice (the three sliced arms), necessity is 5% to 18% of centralized and removing an expert costs at most 0.07 points. Where every worker routes over all eight experts (partial update and full-model averaging), it is 56% to 80% of centralized and removing an expert costs 1.2 to 11.1 points.
+7. **The cleanest contrast is partial update against sliced with the router over all.** These two arms differ in training only in whether a worker may route tokens to experts it does not update: same assignment, same four experts updated per worker, same router rule. They are not equal in memory or computation (above). Allowing it raises necessity from 5% to 7% of centralized to 56% to 70%. So in this setting, most of the redundancy comes from restricting each worker's routing to its slice, not from which experts each worker updates or how the router is merged. In PLAN section 5's terms, the cause is masked routing rather than partial updates. This supports the candidate explanation from the check run (each worker's four experts must serve all eight maps). What each expert actually learns was not measured directly.
+8. **Periodic averaging alone costs some specialization too.** Full-model averaging, with no slicing at all, keeps 64% to 80% of centralized necessity. Partial update is close behind it (56% to 70%).
+9. **The assignment policy and the router rule matter little next to that.** Rolling raises necessity two to three times over coverage (15% to 18% against 6% to 10%), and averaging the router over all workers instead of holders changes it little (5% to 7%). Both stay far below the partial and full arms.
+10. **Drift does not track the redundancy.** Final-round drift is near zero in the rolling, partial and full arms (layer means at most 0.035) and up to 0.14 in the two coverage arms, so redundant and non-redundant arms both have low drift.
+
+**Bearing on the gate review (for the owner; no decision taken here).** The criteria are met, and the D23 finding now has a measured source in this setting: routing restricted to a slice during local training. Partial update recovers most of the specialization while each worker still updates only its 4 experts. But every worker must then hold and run all 8, the memory cost slicing exists to avoid. It is a measured diagnostic arm, not one of the remedies registered in PLAN section 5; those are for a routing failure, which did not occur. Task B is where any capacity cost of the redundancy must show (D23).
+
+**Operational notes (do not affect the numbers).**
+
+- Run 1 (`20261008T081034Z_taskA-sliced-coverage-marked_s7`) was stopped when the laptop had to travel, after round 5, and finished with `--resume` from its checkpoint on the same commit. Resume is bitwise identical in the step 6 check (`43f3958`); that was not re-checked for this run.
+- Every run held the keep-awake request. The power summaries (one per run) show no mains drop-outs, standby entries or stalls in either the power monitor or the Windows event log, and no runtime warnings. Run 1's first segment (rounds 0 to 5), stopped before travel, wrote no power summary, so its power history is not recorded.
+- Runs 2 to 6 took 338 s to 504 s each through the visible launcher; run 1's resumed segment (rounds 6 to 9) took 175 s.
+- Comparison queue, 09:59 to 13:05 UTC: all 24 runs completed with keep-awake held, no standby entries, no stalls and no runtime warnings. Mains drop-outs returned. 16 runs logged short drop-outs, 99 Windows "AC offline" events in all, up to 19 in one run, each bridged by the battery. Mains was also off for 16 minutes (11:51:05 to 12:07:26), the whole of `20261008T115103Z_taskA-partial-unmarked_s11`, which ran on battery (99% to 72%) and slowed from 29 s to 196 s per round. Training is deterministic, so these changed only wall-clock time.
+
+**Not tested:**
+
+- What each expert learns (for example, per-expert accuracy on each map); the source of the redundancy is located by the arms above, not measured inside the experts.
+- Whether it costs anything on Task B, other model sizes, budgets, worker counts or capacities.
+- Faults and skew in a Gate A run.
+- Reproduction on another machine.
