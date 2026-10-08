@@ -5,7 +5,7 @@
 | PLAN step | 9a · Redundancy probe, before Task B |
 | Branch | `stage0/09-redundancy-probe` (from `main` after the Gate A merge) |
 | SRS | Decisions D23 (reading of a redundant pass) and D24 (Gate A decision and this probe) |
-| Status | Planned. Reading registered by the owner on 2026-10-08, in commit history before any probe number was computed |
+| Status | Implemented and run. Reading registered by the owner on 2026-10-08 before any probe number was computed (commits `6732714`, `dfaf437`); outcome **mixed** (`RESULTS.md`) |
 
 ## Problem / Motivation
 
@@ -23,14 +23,14 @@ They predict different things for Task B. Generalists waste capacity that a larg
 
 ## What Changed
 
-To be completed after implementation. Planned:
-
 | File | Description |
 |---|---|
-| `cassandra_chorus/metrics/probe.py` | Forced-pair and bypass evaluations of a saved model, and the derived quantities below. |
-| `scripts/probe_task_a.py` | Runs the probe over the Gate A models and writes `results/task_a_redundancy_probe.md` and a JSON file with every matrix (for figures). |
-| `tests/test_probe.py` | Tests on small synthetic models with known behaviour. |
-| `RESULTS.md` | The probe's entry. |
+| `docs/SRS.md`, `docs/PLAN.md` | Decision D24 (the owner's Gate A decision) and step 9a. |
+| `cassandra_chorus/metrics/probe.py` | Bypass and forced-pair evaluations of a model (`probe_model`), the derived quantities (`summarize`) and the registered reading (`evaluate_reading`). |
+| `scripts/probe_task_a.py` | Selects the Gate A runs as the Gate A report does, loads each `final_model.pt`, writes `<run>/probe.json` (raw, not committed), `results/task_a_redundancy_probe.md` and `results/task_a_redundancy_probe.json` (every summary and competence table, for figures). Holds the keep-awake request while it runs. |
+| `tests/test_probe.py` | 7 tests: identical experts, a silent layer, hook removal, probe shape, the summary arithmetic, and the reading's four outcomes. |
+| `results/task_a_redundancy_probe.md`, `.json` | The probe over the 36 Gate A models. |
+| `RESULTS.md` | The probe's entry and its interpretation. |
 
 ## Implementation Approach
 
@@ -81,13 +81,35 @@ Confirmed by the owner on 2026-10-08 as proposed, in the spirit of D23. Every nu
 
 ## Verification
 
-To be completed after implementation. Planned:
+**Unit tests** (CPU, reference laptop): `python -m pytest tests/test_probe.py -q`, 7 passed. Identical experts give a competent share of exactly 1 and specialization 0. A layer whose experts output zeros has a bypass cost of exactly 0. The hook is removed after use, and the summary arithmetic and all four reading outcomes match hand-computed cases. The first draft's specialization (raw accuracy) failed the identical-experts test, which led to the retention definition above, before any real model was probed.
 
-- Unit tests with synthetic models where the answer is known: a model whose experts are identical (competent share 1), and one whose layer is bypassable (β = 0).
-- Spot checks on real models:
-  - forcing the pair the trained router picks most often for a map reproduces close to a(m) on that map;
-  - for each model, the forced-pair accuracies averaged over pairs and maps sit near a single-layer random-routing figure, measured separately as a cross-check.
-- **Not tested:** to be completed.
+**The probe itself:**
+
+```bash
+python -m scripts.probe_task_a
+```
+
+- Launched through `scripts/ops/launch_visible.ps1` at commit `6a02d4b` with a clean tree. It probed the 36 saved models (6 centralized at `723f072`, 30 sliced and comparison runs at `f8ac7ef`) on the RTX 4070 Laptop GPU in 1,820 s, against an estimate of under 20 minutes; the cross-checks account for most of the difference.
+- A smoke test on one copied model ran first (32 s), after the reading was committed.
+
+**Cross-checks on the real models** (in the report, not part of the reading):
+
+- **Single-layer random routing against the mean forced-pair accuracy.**
+  - These agree within about 0.04 everywhere except layer 0 of the unmarked centralized, partial and full models, where they differ by up to 0.083, 0.094 and 0.105.
+  - There routing follows the input symbol, not the map: Gate A layer-0 consistency is about 0.002. Random routing per token is then not the same as one fixed pair for every token.
+- **Forcing each map's two most-used experts.**
+  - Outside layer 0 this keeps at least 0.968 of trained accuracy.
+  - In layer 0 it falls to 0.928 in the centralized marked models, 0.942 in the rolling unmarked models, and 0.32 to 0.87 in the unmarked centralized, partial and full models.
+  - There "the map's most-used pair" is not a meaningful quantity.
+  - Both exceptions are the check doing its job: they mark where routing is not by map.
+
+**Operational note:** the keep-awake request was made, but its status line went to the console, which the launcher transcript does not capture (PowerShell 5.1 `Start-Transcript` does not record native programs' output), so it is not on record. No standby or stall was observed: the run finished in one pass.
+
+**Not tested:**
+
+- Bypassing more than one mixture layer at once, so whether the mixture as a whole does any work in the marked sliced models.
+- What layer-0 experts specialize in, if not the map (presumably the input symbol; not measured).
+- Other budgets, model sizes, and Task B models.
 
 ## Related Docs
 

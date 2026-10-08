@@ -236,3 +236,70 @@ The arms are equal in steps and sequences, not in memory or computation. A parti
 - Whether it costs anything on Task B, other model sizes, budgets, worker counts or capacities.
 - Faults and skew in a Gate A run.
 - Reproduction on another machine.
+
+## 2026-10-08 · PLAN step 9a: redundancy probe, what each expert learned
+
+**Purpose.** Gate A passed with the D23 finding (owner decision D24), and the comparison arms located its source: routing restricted to the worker's slice. Nothing had been measured inside the experts. Two explanations fitted equally well:
+
+- **Generalists:** every expert learned every map.
+- **Bypassed:** the mixture layers are barely needed.
+
+The owner decided to tell them apart before Task B. The reading was registered before any probe number was computed (commits `6732714`, `dfaf437`).
+
+**Setup.**
+
+- Analysis only: the 36 saved Gate A models (`final_model.pt`), no training, each on its own curve set (256 sequences per map).
+- For each mixture layer: its output zeroed (bypass), and its routing forced to each of the 28 expert pairs.
+- Script `scripts/probe_task_a.py` at commit `6a02d4b`, clean tree; RTX 4070 Laptop GPU, 1,820 s.
+- Full tables: `results/task_a_redundancy_probe.md`; every competence table: `results/task_a_redundancy_probe.json`. Method and definitions: `docs/implementations/2026-10-08-redundancy-probe.md`.
+- **Needed:** bypassing the layer costs at least 5 points on its worst map.
+- **Competent (pair, map) cell:** keeps at least 0.99 of trained accuracy on that map.
+
+**Registered reading: mixed** (by the registered rule, no verdict). The two variants split cleanly.
+
+**Unmarked variant.** Layer 0 is needed in every arm and every seed, and both predictions hold on every seed:
+
+| Arm | Layer 0 bypass cost (points) | Competent share, layer 0 | Specialization, layer 0 | Needed layers |
+|---|---|---|---|---|
+| Centralized | 69.1 to 88.2 | 0.000 | 0.198 to 0.328 | 0 and 2, every seed |
+| Sliced, coverage (main) | 44.3 to 63.4 | 0.629 to 0.710 | 0.011 to 0.016 | 0 only |
+| Sliced, router over all | 46.1 to 66.4 | 0.661 to 0.777 | 0.010 to 0.016 | 0 only |
+| Sliced, rolling | 60.7 to 65.3 | 0.049 to 0.192 | 0.031 to 0.049 | 0 only |
+| Partial update | 60.7 to 79.1 | 0.000 | 0.155 to 0.310 | 0 and 1, plus 2 on one seed |
+| Full-model averaging | 69.1 to 84.6 | 0.000 | 0.253 to 0.305 | 0 and 1, more on two seeds |
+
+**Marked variant.** No layer of the main arm is needed on any seed, so the reading's first condition fails there:
+
+| Arm | Needed layers | Largest single-layer bypass cost (points) |
+|---|---|---|
+| Centralized | 0, 1 and 2, every seed | 72.9 |
+| Sliced, coverage (main) | none | 0.4 |
+| Sliced, router over all | none | 0.8 |
+| Sliced, rolling | layer 1 on seeds 7 and 11 | 5.4 |
+| Partial update | 1 and 2, every seed | 51.5 |
+| Full-model averaging | 1, plus 2 on seed 7 | 62.2 |
+
+**What this shows (Task A, this model size and budget, three seeds):**
+
+1. **Where a mixture layer is needed, the sliced experts are generalists.** This holds in the unmarked variant's layer 0. Most (pair, map) cells of the main sliced model keep 99% of trained accuracy (0.63 to 0.71), and its experts serve every map almost equally (specialization about 0.01). In centralized, partial and full models no cell does, and the experts are specialized (0.16 to 0.33). This supports the D23 diagnosis from inside the experts, on the unmarked variant.
+2. **In the marked variant, no single mixture layer of the main sliced model is needed.**
+   - Zeroing any one of its four layers costs at most 0.4 points; centralized needs three layers.
+   - So the sliced models' mixture layers are redundant with each other as well as within themselves.
+   - Whether the mixture as a whole does any work there was not tested: the probe removes one layer at a time.
+   - The marked variant therefore cannot speak to expert specialization in sliced models. It is small enough (about a thousand bits) that the sliced models need no single layer, the concern raised before the step 4 pilot.
+3. **Rolling assignment is less generalist than coverage** (competent share 0.05 to 0.19, specialization 0.03 to 0.05). This fits its higher routing necessity at Gate A (15% to 18% of centralized against 6% to 10%). It is still far from centralized, partial and full.
+4. **Layer 0 of the unmarked models does not route by map** (Gate A consistency about 0.002 there). Its centralized experts are specialized all the same, presumably by input symbol; that was not measured. The competent share needs a pair to handle every map fully, so it registers specialization whatever its basis.
+
+**Bearing on Task B.** A language model needs far more capacity than eight lookup maps. If sliced experts become generalists on real text too, the mixture holds several copies of similar experts, and Task B's bits-per-character gap is where that cost must show (D23).
+
+**Cross-checks** (not part of the reading):
+
+- Single-layer random routing agrees with the mean forced-pair accuracy within about 0.04, except in layer 0 of the unmarked centralized, partial and full models (gaps up to 0.105).
+- Forcing each map's most-used pair keeps at least 0.968 of trained accuracy outside layer 0. In layer 0 it falls to 0.93 to 0.94 in the centralized marked and rolling unmarked models, and to 0.32 to 0.87 in the unmarked centralized, partial and full models.
+- In those layers routing does not follow the map, so neither check applies there. Details are in the step 9a doc.
+
+**Not tested:**
+
+- Bypassing several mixture layers at once.
+- What layer-0 experts specialize in.
+- Other budgets and sizes, and Task B.
