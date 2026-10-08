@@ -101,8 +101,10 @@ def report(rows, result, runs_dir: Path) -> str:
         "- **Necessity:** accuracy with the trained router minus accuracy with random routing, both on the curve set "
         "(the diagnostic does not re-score the gate set).",
         "- **Negligible:** experts whose token share in a layer is below 0.1 · k/E = 0.025.",
-        "- **Drift:** per expert, mean Jensen-Shannon divergence (base 2) between the map mixes its holders sent it in "
-        "the final round; mean over experts with two or more holders.",
+        "- **Drift:** per expert, mean Jensen-Shannon divergence (base 2) between its holders' map mixes in the final "
+        "round, where holders are the workers whose copy is merged (all workers in full-model averaging) and a map mix is "
+        "how the worker's model routes the curve set to that expert after its local steps; mean over experts with two "
+        "or more holders.",
         "",
     ]
     return "\n".join(lines)
@@ -119,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     text = report(rows, result, runs_dir)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(text, encoding="utf-8", newline="\n")
-    print(f"{len(rows)} runs; Gate A {result['overall']}; report written to {args.out}")
+    print(f"{len(rows)} runs; criteria verdict {result['overall']}; report written to {args.out}")
     return 0
 
 

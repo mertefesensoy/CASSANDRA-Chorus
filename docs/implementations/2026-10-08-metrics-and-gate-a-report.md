@@ -64,6 +64,18 @@ For each run, the row records:
 - **Expert drift, sliced arms only:** per layer, the mean and maximum over experts of the holder-pair Jensen-Shannon divergence in the final round, and its mean over rounds (S0-F-27).
 - **Run identity:** run ID, configuration hash and commit.
 
+### What drift compares in each mode
+
+The step 6 harness logs, for each worker and round, its slice (`held`) and the map-by-expert table of its own model at the end of its local steps, evaluated on the curve set (`eval.worker_tables`). Drift takes, for each expert, the tables of the workers whose copy of that expert is averaged in the merge:
+
+| Mode | Holders of an expert (Gate A setting) | What a high drift would mean |
+|---|---|---|
+| `sliced` | the 2 workers assigned it | its two copies were trained on different maps before averaging |
+| `partial` | the 2 workers assigned it (the other 2 route to it, but its copy there is frozen and not merged) | the same, for the copies that are merged |
+| `full` | all 4 workers | the workers' routers disagree on which maps go to it |
+
+The "map mix sent to an expert" is therefore a proxy: how the worker's model routes the curve set after training, not a count of the tokens it actually routed during its 125 steps. Training traffic is not logged.
+
 ### Criteria (SRS section 4.4, D10, D23)
 
 | Criterion | Rule |
@@ -107,6 +119,7 @@ Let C be a layer's map-by-expert count table over scored positions, where each o
 | Run selection | By run name and completed status; refuse ambiguity | Latest run wins | Engineering default: no silent choice between runs |
 | Analysis only | Metrics computed from logs | Recompute from saved models | Engineering default: every needed quantity is logged; no reruns |
 | Necessity sets | Trained and random routing on the same (curve) set | Gate accuracy minus curve-set random routing | Engineering default: a difference must compare like with like; caught while writing the report |
+| Drift inputs | Holders are the workers whose copy is merged; map mixes are end-of-round routing on the curve set | Counting training traffic (not logged); counting every worker that routes to the expert in partial mode | Engineering default, recorded here so the comparison arms are read consistently. The owner may prefer another reading at the gate review |
 | When the D23 paragraph appears | Any seed's necessity ratio below 0.5; ratios always printed | No threshold, prose judgment; a stricter ratio | Engineering default. D23 sets no number, and this threshold changes no verdict: it only decides whether the paragraph is printed. The owner may set another at the gate review |
 
 ## Verification
