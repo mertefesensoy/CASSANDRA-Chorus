@@ -27,6 +27,7 @@ from cassandra_chorus.config import RunSection, load_config
 from cassandra_chorus.data import TaskA, TaskASection, bayes_optimal_accuracy
 from cassandra_chorus.metrics import evaluate_task_a, routing_necessity
 from cassandra_chorus.model import ModelSection, MoETransformer, count_parameters
+from cassandra_chorus.ops import enforce, load_ops_settings, operations, run_preflight
 from cassandra_chorus.runlog import RunLogger, make_run_id
 from cassandra_chorus.train import OptimSection, check_schedule, make_optimizer, train_steps
 
@@ -90,6 +91,10 @@ def main(argv: list[str] | None = None) -> int:
     repro.set_cpu_threads(cfg.run.cpu_threads)
     device = resolve_device(cfg.run.device)
     n_maps = cfg.task_a.n_maps
+    # Machine-level checks before any run folder exists (docs/implementations/2026-10-08-run-operations.md).
+    ops_settings, ops_source = load_ops_settings()
+    checks = run_preflight(ops_settings, paths.runs_root(), expected_seconds=cfg.train.steps * ops_settings.seconds_per_step)
+    enforce(checks)
 
     with RunLogger.create(paths.runs_root(), make_run_id(cfg.run.name, cfg.run.seed)) as log:
         seeds = repro.seed_everything(cfg.run.seed)
@@ -116,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
             return batch.inputs, batch.targets
 
         optimizer = make_optimizer(model, cfg.optim)
-        with log.capture_warnings():
+        with operations(log, ops_settings, ops_source, checks), log.capture_warnings():
             step, train_seconds = 0, 0.0
             first = evaluate_task_a(model, curve, device, n_maps)
             log.write("eval", step=0, sequences=0, **first)

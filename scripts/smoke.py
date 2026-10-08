@@ -23,6 +23,7 @@ import torch
 
 from cassandra_chorus import paths, repro
 from cassandra_chorus.config import RunSection, load_config
+from cassandra_chorus.ops import enforce, load_ops_settings, operations, run_preflight
 from cassandra_chorus.runlog import RunLogger, make_run_id
 
 
@@ -78,6 +79,9 @@ def main(argv: list[str] | None = None) -> int:
     repro.prepare_process(cfg.run.determinism)  # before any CUDA work
     repro.set_cpu_threads(cfg.run.cpu_threads)
     device = resolve_device(cfg.run.device)  # fail before creating a run folder
+    ops_settings, ops_source = load_ops_settings()
+    checks = run_preflight(ops_settings, paths.runs_root(), expected_seconds=60)
+    enforce(checks)
     run_id = make_run_id(cfg.run.name, cfg.run.seed)
 
     with RunLogger.create(paths.runs_root(), run_id) as log:
@@ -90,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
             environment=repro.environment_info(),
             determinism=determinism,
         )
-        with log.capture_warnings():
+        with operations(log, ops_settings, ops_source, checks), log.capture_warnings():
             checksum, loss = smoke_computation(cfg.smoke.size, device)
             log.write("final", device=str(device), metrics={"smoke_checksum": checksum, "smoke_loss": loss})
 

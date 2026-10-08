@@ -10,6 +10,26 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 
 
+@pytest.fixture(scope="session", autouse=True)
+def test_ops_settings(tmp_path_factory):
+    """Machine-level ops settings for the whole test session.
+
+    Entry points run as subprocesses while this test process may hold the GPU,
+    so the GPU-idle check is off; keep-awake is off so tests change nothing on
+    the machine; no scheduled tasks are checked. Tests never read the real
+    ops.local.toml. Subprocesses inherit the variable through os.environ.
+    """
+    path = tmp_path_factory.mktemp("ops") / "ops.toml"
+    path.write_text("[ops]\nrequire_gpu_idle = false\nkeep_awake = false\n", encoding="utf-8")
+    previous = os.environ.get("CHORUS_OPS_FILE")
+    os.environ["CHORUS_OPS_FILE"] = str(path)
+    yield path
+    if previous is None:
+        os.environ.pop("CHORUS_OPS_FILE", None)
+    else:
+        os.environ["CHORUS_OPS_FILE"] = previous
+
+
 @pytest.fixture
 def restore_torch_determinism():
     """Undo global PyTorch determinism changes made by a test."""
