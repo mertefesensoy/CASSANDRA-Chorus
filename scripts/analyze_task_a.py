@@ -74,15 +74,16 @@ def report(rows, result, runs_dir: Path) -> str:
         if not arm_rows:
             continue
         lines += [f"### {title}", "",
-                  "| Variant | Seed | Gate accuracy | Lowest map | Bayes | Necessity | Consistency by layer | Negligible experts | Drift, final round (mean by layer) | Run ID | Config |",
-                  "|---|---|---|---|---|---|---|---|---|---|---|"]
+                  "| Variant | Seed | Gate accuracy | Lowest map | Bayes | Necessity | Consistency by layer | Negligible experts | Drift, final round (mean by layer) | Run ID | Config | Commit |",
+                  "|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for r in arm_rows:
             consistency = ", ".join(fmt(c, 3) for c in r.consistency)
             negligible = sum(len(v) for v in r.negligible.values())
             drift = ", ".join(fmt(d["mean"], 3) for d in r.drift_final) if r.drift_final else "n/a"
+            commit = "unknown" if r.commit is None else r.commit[:7] + (" (dirty)" if r.dirty else "")
             lines.append(f"| {r.variant} | {r.seed} | {fmt(r.gate_accuracy, 5)} | {fmt(r.min_map_accuracy, 5)} | "
                          f"{fmt(r.bayes_optimal, 5)} | {fmt(r.necessity)} | {consistency} | {negligible} | {drift} | "
-                         f"`{r.run_id}` | `{r.config_hash[:12]}` |")
+                         f"`{r.run_id}` | `{r.config_hash[:12]}` | `{commit}` |")
         lines.append("")
 
     lines += [
