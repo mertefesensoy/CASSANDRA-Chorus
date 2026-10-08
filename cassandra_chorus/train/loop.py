@@ -55,9 +55,9 @@ class TrainStats:
 
 
 def make_optimizer(model: nn.Module, cfg: OptimSection) -> torch.optim.AdamW:
-    return torch.optim.AdamW(
-        model.parameters(), lr=cfg.lr, betas=(cfg.beta1, cfg.beta2), eps=cfg.eps, weight_decay=cfg.weight_decay
-    )
+    """AdamW over the model's trainable parameters (frozen ones, ``requires_grad=False``, are left out)."""
+    params = [p for p in model.parameters() if p.requires_grad]
+    return torch.optim.AdamW(params, lr=cfg.lr, betas=(cfg.beta1, cfg.beta2), eps=cfg.eps, weight_decay=cfg.weight_decay)
 
 
 def decay_start(cfg: OptimSection, total_steps: int) -> int:

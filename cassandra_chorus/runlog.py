@@ -153,6 +153,26 @@ class RunLogger:
         run_dir.mkdir(exist_ok=False)
         return cls(run_dir, run_id)
 
+    @classmethod
+    def reopen(cls, run_dir: Path) -> RunLogger:
+        """Reopen an existing run's log for appending (used to resume a run).
+
+        The caller should write a ``resume`` record next. The log then holds the
+        interrupted process's records, possibly its ``end`` record, and the
+        resumed process's records after the ``resume`` record.
+        """
+        run_dir = Path(run_dir)
+        if not (run_dir / cls.LOG_NAME).exists():
+            raise FileNotFoundError(f"no run log in {run_dir}")
+        logger = cls.__new__(cls)
+        logger.run_dir = run_dir
+        logger.run_id = run_dir.name
+        logger._fh = (run_dir / cls.LOG_NAME).open("a", encoding="utf-8", newline="\n")
+        logger._closed = False
+        logger._lock = threading.Lock()
+        logger._warning_counts = {}
+        return logger
+
     @property
     def log_path(self) -> Path:
         return self.run_dir / self.LOG_NAME
