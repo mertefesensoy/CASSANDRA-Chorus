@@ -142,12 +142,11 @@ On real runs (6 centralized at commit `723f072`, 6 main-arm at `f8ac7ef`):
 python -m scripts.analyze_task_a
 ```
 
-This wrote `results/task_a_gate_a.md`: verdict pass, D23 paragraph raised in 6 of 6 seed and variant pairs. Each row was cross-checked by hand against the run logs' `final` records for:
+This wrote `results/task_a_gate_a.md`: verdict pass, D23 paragraph raised in 6 of 6 seed and variant pairs. Cross-checks:
 
-- gate and lowest-map accuracy;
-- trained and random-routing accuracy on the curve set;
-- the least-used expert's share;
-- the run's commit.
+- **Main-arm rows:** a separate script read the `final` records directly. Its trained and random-routing accuracies agree with the report's necessity, and its least-used expert shares agree with the zero negligible-expert count.
+- **Centralized rows:** gate accuracy, lowest map, random routing and Bayes agree with the step 4 table in `RESULTS.md`.
+- **Main-arm gate accuracy and lowest map:** not re-extracted independently. The report reads them straight from the logged fields.
 
 The interpretation is in `RESULTS.md` (Gate A, main arm). The drift values (final-round layer means 0.001 to 0.139, maxima up to 0.242) were read from that report and compared with the synthetic cases for scale only.
 
