@@ -35,6 +35,14 @@ def fmt(x, digits=4):
     return "n/a" if x is None else f"{x:.{digits}f}"
 
 
+def span(values, digits):
+    """'lo to hi' over seeds, one number if they agree at this precision, 'n/a' if empty."""
+    if not values:
+        return "n/a"
+    lo, hi = fmt(min(values), digits), fmt(max(values), digits)
+    return lo if lo == hi else f"{lo} to {hi}"
+
+
 def report(rows, result, runs_dir: Path) -> str:
     commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True).stdout.strip()
     dirty = subprocess.run(["git", "status", "--porcelain"], cwd=REPO_ROOT, capture_output=True, text=True).stdout.strip()
@@ -75,7 +83,27 @@ def report(rows, result, runs_dir: Path) -> str:
         ]
     lines.append("")
 
-    lines += ["## Results by arm", ""]
+    lines += [
+        "## Arms side by side",
+        "",
+        "Ranges over seeds. Necessity and removal cost on the curve set; the ratio divides each run's necessity by the "
+        "centralized run's with the same seed and variant.",
+        "",
+        "| Arm | Variant | Runs | Gate accuracy | Necessity | Necessity / centralized | Worst single-expert removal (points) |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for arm, title in ARM_TITLES.items():
+        for variant in ("marked", "unmarked"):
+            arm_rows = [r for (a, v, _), r in sorted(rows.items()) if a == arm and v == variant]
+            if not arm_rows:
+                continue
+            central = {s: r for (a, v, s), r in rows.items() if a == "centralized" and v == variant}
+            ratios = [r.necessity / central[r.seed].necessity for r in arm_rows
+                      if r.seed in central and central[r.seed].necessity > 0]
+            costs = [100 * r.removal_cost for r in arm_rows if r.removal_cost is not None]
+            lines.append(f"| {title} | {variant} | {len(arm_rows)} | {span([r.gate_accuracy for r in arm_rows], 5)} | "
+                         f"{span([r.necessity for r in arm_rows], 3)} | {span(ratios, 2)} | {span(costs, 2)} |")
+    lines += ["", "## Results by arm", ""]
     for arm, title in ARM_TITLES.items():
         arm_rows = sorted((r for (a, _, _), r in rows.items() if a == arm), key=lambda r: (r.variant, r.seed))
         if not arm_rows:

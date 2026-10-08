@@ -1,6 +1,6 @@
 # Task A · Gate A report
 
-Generated 2026-10-08 10:06 UTC by `python -m scripts.analyze_task_a` (code `a2e7875`) from the run logs in `C:\Users\senso\chorus-runs`. Criteria and their reading were registered before any Gate A run (SRS section 4.4, D10, D22, D23).
+Generated 2026-10-08 13:06 UTC by `python -m scripts.analyze_task_a` (code `e44d0a3`) from the run logs in `C:\Users\senso\chorus-runs`. Criteria and their reading were registered before any Gate A run (SRS section 4.4, D10, D22, D23).
 
 ## Criteria verdict: PASS
 
@@ -52,6 +52,44 @@ S0-A-04 (Task B) is not part of Gate A. The criteria apply to the main arm; the 
 | Variant | Seed | Gate accuracy | Lowest map | Bayes | Necessity | Consistency by layer | Negligible experts | Drift, final round (mean by layer) | Run ID | Config | Commit |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | marked | 7 | 1.00000 | 1.00000 | 1.00000 | 0.0837 | 0.062, 0.393, 0.389, 0.026 | 0 | 0.001, 0.003, 0.004, 0.000 | `20261008T095932Z_taskA-sliced-rolling-marked_s7` | `07e57d1cd544` | `f8ac7ef` |
+| marked | 11 | 0.99998 | 0.99987 | 1.00000 | 0.0766 | 0.108, 0.517, 0.199, 0.054 | 0 | 0.002, 0.004, 0.008, 0.006 | `20261008T100404Z_taskA-sliced-rolling-marked_s11` | `8202ad30d266` | `f8ac7ef` |
+| marked | 19 | 1.00000 | 1.00000 | 1.00000 | 0.0866 | 0.095, 0.443, 0.386, 0.033 | 0 | 0.000, 0.002, 0.002, 0.000 | `20261008T101053Z_taskA-sliced-rolling-marked_s19` | `8277daa3c453` | `f8ac7ef` |
+| unmarked | 7 | 0.95091 | 0.94531 | 0.95106 | 0.1201 | 0.003, 0.404, 0.434, 0.016 | 0 | 0.000, 0.007, 0.005, 0.004 | `20261008T101805Z_taskA-sliced-rolling-unmarked_s7` | `e344ac5b22f5` | `f8ac7ef` |
+| unmarked | 11 | 0.95103 | 0.94853 | 0.95106 | 0.1172 | 0.006, 0.376, 0.436, 0.010 | 0 | 0.000, 0.003, 0.003, 0.005 | `20261008T102547Z_taskA-sliced-rolling-unmarked_s11` | `d21c9a68ac95` | `f8ac7ef` |
+| unmarked | 19 | 0.95061 | 0.94718 | 0.95106 | 0.1314 | 0.003, 0.423, 0.357, 0.024 | 0 | 0.000, 0.008, 0.004, 0.004 | `20261008T103333Z_taskA-sliced-rolling-unmarked_s19` | `bf8a7864f79d` | `f8ac7ef` |
+
+### Sliced, router averaged over all workers
+
+| Variant | Seed | Gate accuracy | Lowest map | Bayes | Necessity | Consistency by layer | Negligible experts | Drift, final round (mean by layer) | Run ID | Config | Commit |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| marked | 7 | 1.00000 | 1.00000 | 1.00000 | 0.0326 | 0.124, 0.379, 0.359, 0.044 | 0 | 0.013, 0.089, 0.100, 0.010 | `20261008T104031Z_taskA-sliced-routerall-marked_s7` | `01dcb8614522` | `f8ac7ef` |
+| marked | 11 | 1.00000 | 1.00000 | 1.00000 | 0.0380 | 0.106, 0.489, 0.347, 0.042 | 0 | 0.020, 0.118, 0.120, 0.022 | `20261008T104642Z_taskA-sliced-routerall-marked_s11` | `016991385dec` | `f8ac7ef` |
+| marked | 19 | 1.00000 | 1.00000 | 1.00000 | 0.0284 | 0.120, 0.421, 0.295, 0.042 | 0 | 0.018, 0.125, 0.055, 0.012 | `20261008T105231Z_taskA-sliced-routerall-marked_s19` | `06042db9d3ed` | `f8ac7ef` |
+| unmarked | 7 | 0.95070 | 0.94437 | 0.95106 | 0.0372 | 0.007, 0.286, 0.409, 0.013 | 0 | 0.002, 0.045, 0.072, 0.007 | `20261008T105919Z_taskA-sliced-routerall-unmarked_s7` | `d89ca23ac195` | `f8ac7ef` |
+| unmarked | 11 | 0.95054 | 0.94408 | 0.95106 | 0.0328 | 0.019, 0.329, 0.360, 0.024 | 0 | 0.002, 0.068, 0.067, 0.008 | `20261008T110611Z_taskA-sliced-routerall-unmarked_s11` | `4172251c5de1` | `f8ac7ef` |
+| unmarked | 19 | 0.95073 | 0.94515 | 0.95106 | 0.0401 | 0.007, 0.325, 0.382, 0.021 | 0 | 0.001, 0.058, 0.098, 0.009 | `20261008T111218Z_taskA-sliced-routerall-unmarked_s19` | `192562430496` | `f8ac7ef` |
+
+### Partial update (S0-F-26)
+
+| Variant | Seed | Gate accuracy | Lowest map | Bayes | Necessity | Consistency by layer | Negligible experts | Drift, final round (mean by layer) | Run ID | Config | Commit |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| marked | 7 | 1.00000 | 1.00000 | 1.00000 | 0.2872 | 0.034, 0.273, 0.507, 0.046 | 0 | 0.000, 0.000, 0.000, 0.000 | `20261008T111836Z_taskA-partial-marked_s7` | `249c67d21631` | `f8ac7ef` |
+| marked | 11 | 1.00000 | 1.00000 | 1.00000 | 0.3239 | 0.098, 0.394, 0.407, 0.033 | 0 | 0.000, 0.000, 0.000, 0.000 | `20261008T112621Z_taskA-partial-marked_s11` | `0e0a212366ba` | `f8ac7ef` |
+| marked | 19 | 1.00000 | 1.00000 | 1.00000 | 0.3786 | 0.063, 0.403, 0.356, 0.041 | 0 | 0.000, 0.000, 0.000, 0.000 | `20261008T113449Z_taskA-partial-marked_s19` | `f4b41d3c9ecd` | `f8ac7ef` |
+| unmarked | 7 | 0.95053 | 0.94793 | 0.95106 | 0.4484 | 0.005, 0.237, 0.251, 0.031 | 0 | 0.000, 0.008, 0.035, 0.010 | `20261008T114234Z_taskA-partial-unmarked_s7` | `c23e81025f62` | `f8ac7ef` |
+| unmarked | 11 | 0.95116 | 0.94561 | 0.95106 | 0.4058 | 0.009, 0.289, 0.248, 0.071 | 0 | 0.001, 0.008, 0.013, 0.012 | `20261008T115103Z_taskA-partial-unmarked_s11` | `7c2632acee0a` | `f8ac7ef` |
+| unmarked | 19 | 0.95055 | 0.94857 | 0.95106 | 0.5249 | 0.001, 0.292, 0.258, 0.033 | 0 | 0.000, 0.009, 0.004, 0.006 | `20261008T120737Z_taskA-partial-unmarked_s19` | `49ea56818f49` | `f8ac7ef` |
+
+### Full-model local averaging (S0-F-14)
+
+| Variant | Seed | Gate accuracy | Lowest map | Bayes | Necessity | Consistency by layer | Negligible experts | Drift, final round (mean by layer) | Run ID | Config | Commit |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| marked | 7 | 1.00000 | 1.00000 | 1.00000 | 0.3488 | 0.017, 0.181, 0.308, 0.033 | 0 | 0.000, 0.003, 0.007, 0.002 | `20261008T121708Z_taskA-fullavg-marked_s7` | `8d4ed606bfb8` | `f8ac7ef` |
+| marked | 11 | 1.00000 | 1.00000 | 1.00000 | 0.3299 | 0.024, 0.296, 0.178, 0.028 | 0 | 0.000, 0.000, 0.000, 0.000 | `20261008T122608Z_taskA-fullavg-marked_s11` | `59bc764798db` | `f8ac7ef` |
+| marked | 19 | 1.00000 | 1.00000 | 1.00000 | 0.4092 | 0.007, 0.319, 0.149, 0.021 | 0 | 0.000, 0.001, 0.000, 0.000 | `20261008T123449Z_taskA-fullavg-marked_s19` | `a70f9453dfb4` | `f8ac7ef` |
+| unmarked | 7 | 0.95066 | 0.94547 | 0.95106 | 0.5538 | 0.003, 0.239, 0.286, 0.024 | 0 | 0.001, 0.005, 0.007, 0.006 | `20261008T124312Z_taskA-fullavg-unmarked_s7` | `c4561d9562f0` | `f8ac7ef` |
+| unmarked | 11 | 0.95113 | 0.94767 | 0.95106 | 0.4993 | 0.005, 0.243, 0.122, 0.044 | 0 | 0.001, 0.006, 0.014, 0.006 | `20261008T125053Z_taskA-fullavg-unmarked_s11` | `2325a4192f41` | `f8ac7ef` |
+| unmarked | 19 | 0.95066 | 0.94658 | 0.95106 | 0.5676 | 0.002, 0.320, 0.297, 0.052 | 0 | 0.001, 0.007, 0.007, 0.006 | `20261008T125804Z_taskA-fullavg-unmarked_s19` | `8ab9e0f26cd7` | `f8ac7ef` |
 
 ## Definitions (SRS D22)
 

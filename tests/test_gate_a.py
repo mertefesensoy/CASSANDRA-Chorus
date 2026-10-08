@@ -30,7 +30,9 @@ def write_run(root, name, seed, marked, *, gate=1.0, min_map=1.0, curve=None, ra
         {"type": "final", "gate": {"accuracy": gate, "min_map_accuracy": min_map, "map_expert_counts": [UNIFORM_TABLE] * L,
                                    "expert_counts": counts or UNIFORM_COUNTS},
          "bayes_optimal_gate": 1.0 if marked else 0.951, "diagnostic": {"trained": {"accuracy": gate if curve is None else curve},
-                        "random_routing": {"accuracy": random_acc}}},
+                        "random_routing": {"accuracy": random_acc},
+                        "leave_one_out": [{"expert": e, "accuracy": (gate if curve is None else curve) - 0.01 * e}
+                                          for e in range(E)]}},
         {"type": "end", "status": status},
     ]
     (d / "log.jsonl").write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
@@ -97,6 +99,7 @@ def test_redundancy_flag_reported_but_not_a_failure(tmp_path):
 def test_necessity_uses_the_curve_set_on_both_sides(tmp_path):
     d = write_run(tmp_path, "taskA-sliced-coverage-unmarked", 7, False, gate=0.951, curve=0.90, random_acc=0.40)
     assert run_row(d).necessity == pytest.approx(0.50)  # 0.90 - 0.40, not 0.951 - 0.40
+    assert run_row(d).removal_cost == pytest.approx(0.07)  # worst single-expert removal, also on the curve set
 
 
 def test_run_selection(tmp_path):
@@ -142,6 +145,7 @@ def test_report_for_a_full_matrix(tmp_path):
     assert "Recorded finding (D23).** In 3 of 6 seed and variant pairs" in text
     assert "### Sliced, coverage (main arm)" in text and "### Full-model local averaging (S0-F-14)" in text
     assert "### Partial update" not in text  # arms with no runs are left out
+    assert "| Full-model local averaging (S0-F-14) | marked | 1 |" in text  # arms side by side
 
 
 def test_report_with_missing_runs(tmp_path):

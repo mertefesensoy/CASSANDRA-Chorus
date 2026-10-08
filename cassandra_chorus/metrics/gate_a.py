@@ -58,6 +58,7 @@ class RunRow:
     trained_curve: float
     random_routing: float
     necessity: float
+    removal_cost: float | None
     consistency: list[float]
     top2: list[float]
     negligible: dict[int, list[int]]
@@ -118,6 +119,7 @@ def run_row(run_dir: Path) -> RunRow | None:
     # trained router and with random routing; the gate set is not re-scored.
     trained_curve = final["diagnostic"]["trained"]["accuracy"]
     random_acc = final["diagnostic"]["random_routing"]["accuracy"]
+    removed = [x["accuracy"] for x in final["diagnostic"].get("leave_one_out", [])]
     sim = cfg.get("sim")
     capacity = None
     if sim is not None:
@@ -130,6 +132,7 @@ def run_row(run_dir: Path) -> RunRow | None:
         config_hash=header["config_hash"], commit=(header["git"] or {}).get("commit"), dirty=(header["git"] or {}).get("dirty"),
         gate_accuracy=gate_acc, min_map_accuracy=final["gate"]["min_map_accuracy"], bayes_optimal=final["bayes_optimal_gate"],
         trained_curve=trained_curve, random_routing=random_acc, necessity=routing_necessity_gap(trained_curve, random_acc),
+        removal_cost=trained_curve - min(removed) if removed else None,
         consistency=[router_consistency(t) for t in tables], top2=[top2_share(t) for t in tables],
         negligible={layer: negligible_experts(c, model["top_k"]) for layer, c in enumerate(final["gate"]["expert_counts"])},
         capacity=capacity, n_experts=model["n_experts"], drift_final=drift_final, drift_mean_over_rounds=drift_means,
