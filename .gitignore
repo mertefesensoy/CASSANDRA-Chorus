@@ -20,3 +20,6 @@ dist/
 *.pt
 *.pth
 *.safetensors
+
+# Machine-level run settings (see ops.example.toml); not committed
+/ops.local.toml

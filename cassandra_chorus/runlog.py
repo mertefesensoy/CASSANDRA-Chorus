@@ -23,6 +23,7 @@ import json
 import math
 import re
 import subprocess
+import threading
 import warnings
 from collections.abc import Iterator
 from datetime import datetime, timezone
@@ -128,6 +129,8 @@ class RunLogger:
     Use :meth:`create`, not the constructor. As a context manager it writes the
     ``end`` record on exit: ``completed``, ``interrupted`` (Ctrl-C) or
     ``failed`` with the error message, and never swallows the exception.
+    :meth:`write` is thread-safe, so a monitor thread can log alongside the
+    training loop.
     """
 
     LOG_NAME = "log.jsonl"
@@ -139,6 +142,7 @@ class RunLogger:
         self.run_id = run_id
         self._fh = (run_dir / self.LOG_NAME).open("x", encoding="utf-8", newline="\n")
         self._closed = False
+        self._lock = threading.Lock()
         self._warning_counts: dict[tuple[str, str], int] = {}
 
     @classmethod
@@ -154,15 +158,16 @@ class RunLogger:
         return self.run_dir / self.LOG_NAME
 
     def write(self, record_type: str, **fields: Any) -> dict[str, Any]:
-        """Append one record and flush it to disk. Returns the record as written."""
-        if self._closed:
-            raise RuntimeError("run log is closed")
+        """Append one record and flush it to disk. Returns the record as written. Thread-safe."""
         clash = [name for name in _RESERVED_FIELDS if name in fields]
         if clash:
             raise ValueError(f"field names {clash} are reserved")
-        record = to_jsonable({"type": record_type, "time_utc": _utc_now_iso(), **fields})
-        self._fh.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
-        self._fh.flush()
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("run log is closed")
+            record = to_jsonable({"type": record_type, "time_utc": _utc_now_iso(), **fields})
+            self._fh.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
+            self._fh.flush()
         return record
 
     def write_header(
@@ -239,12 +244,19 @@ class RunLogger:
                     )
 
     def close(self, status: str = "completed", **fields: Any) -> None:
-        """Write the ``end`` record and close the file. Idempotent."""
-        if self._closed:
-            return
-        self.write("end", status=status, **fields)
-        self._fh.close()
-        self._closed = True
+        """Write the ``end`` record and close the file, as one locked step. Idempotent.
+
+        Any later :meth:`write` (for example from a monitor thread that was not
+        stopped) raises ``RuntimeError`` instead of appending after ``end``.
+        """
+        with self._lock:
+            if self._closed:
+                return
+            record = to_jsonable({"type": "end", "time_utc": _utc_now_iso(), "status": status, **fields})
+            self._fh.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
+            self._fh.flush()
+            self._fh.close()
+            self._closed = True
 
     def __enter__(self) -> RunLogger:
         return self

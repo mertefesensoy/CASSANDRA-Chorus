@@ -72,6 +72,17 @@ def summarize(folder: Path) -> str:
         f"- Warnings recorded: {sum(c['count'] for c in rec['warnings_summary'][0]['counts']) if rec.get('warnings_summary') else 'n/a'}; "
         f"end status: {rec['end'][0]['status']}",
     ]
+    if rec.get("power_summary"):  # runs since the run-operations change (2026-10-08)
+        ps = rec["power_summary"][0]
+        mon, win = ps.get("monitor") or {}, ps.get("windows_events") or {}
+        win_text = (
+            f"Windows events: {win.get('ac_offline')} mains drop-outs, {win.get('standby_enter')} standby entries"
+            if win.get("available") else f"Windows events unavailable ({win.get('reason')})"
+        )
+        lines.append(
+            f"- Operations: keep-awake held {ps['keep_awake'].get('held')}; monitor saw {mon.get('ac_changes')} mains changes, "
+            f"{mon.get('stalls')} stalls ({mon.get('total_stall_seconds')} s in total); {win_text}"
+        )
     return "\n".join(lines)
 
 

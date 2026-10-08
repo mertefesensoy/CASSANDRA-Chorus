@@ -1,0 +1,15 @@
+# Machine-level run settings for CASSANDRA Chorus (docs/implementations/2026-10-08-run-operations.md).
+# Copy to ops.local.toml (gitignored) and adjust for this machine. These settings
+# describe the machine, not the experiment: they are written to every run log but
+# are not part of the configuration hash. Every key is optional; defaults shown.
+
+[ops]
+keep_awake = true             # hold a Windows "system and display required" request for the whole run
+power_monitor = true          # log mains/battery changes and process stalls; never stops a run
+poll_seconds = 1.0            # power-status polling interval
+stall_seconds = 10.0          # a poll gap longer than this is logged as a stall (process frozen)
+min_free_gib = 15.0           # refuse to start below this much free disk on the runs drive
+refuse_onedrive = true        # refuse a runs folder inside OneDrive (OneDrive breaks file renames)
+require_gpu_idle = true       # refuse to start while another process uses the GPU
+avoid_scheduled_tasks = []    # Windows scheduled tasks a run must not overlap, e.g. ["NightlyGpuJob"]
+seconds_per_step = 0.15       # rough step time, only used to estimate run length for the overlap check
