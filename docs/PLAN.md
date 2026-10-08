@@ -44,7 +44,8 @@ Steps are listed in dependency order. No dates are given: the pace depends on th
 | 7 | Local-averaging baselines: full model (every worker holds and updates all experts), and partial update (every worker holds all experts but updates only its assigned ones) | Separate the cost of local steps, of partial expert updates, and of masked routing | S0-F-14, S0-F-26 |
 | 8 | Metrics: accuracy, router consistency, expert usage, expert drift | Per-run report | S0-F-20 to S0-F-24, S0-F-27 |
 | 9 | **Decision gate A**: Task A results against criteria | Go, fix, or stop | S0-A-01 to S0-A-03, under the conditions of S0-A-05 and S0-A-06 |
-| 10 | Task B on text8: centralized, local-averaging and sliced runs | Bits-per-character comparison | S0-F-19, S0-A-04 |
+| 9a | Redundancy probe (owner decision 2026-10-08, SRS D24): from the saved Gate A models, forced routing per layer and per expert pair, and bypass of each mixture layer | What each expert learned; whether the experts are needed at all | D23, D24 |
+| 10 | Task B on text8 (arms per SRS D25): a timing pilot of three model sizes, then, after owner approval of size and budget, centralized, sliced, full-model and partial-update runs on seeds 7, 11 and 19 | Bits-per-character comparison | S0-F-19, S0-A-04, D25 |
 | 11 | Sweeps over local steps, slice size, worker count, dropout | Results tables | S0-F-23 |
 | 12 | **Decision gate B**: write-up of Stage 0 | Short technical report | S0-N-07 |
 
@@ -71,6 +72,7 @@ Setting (owner decisions 2026-10-08, SRS D17 to D20):
 
 
 - Passes: continue to Task B.
+- **Decided on 2026-10-08 (SRS D24):** Gate A passes with the D23 recorded finding (criteria met on every seed; necessity 6% to 10% of centralized; cause located to slice-restricted routing by the comparison arms, `RESULTS.md`). A redundancy probe (step 9a) comes before Task B.
 - **Registered on 2026-10-08, before any Gate A run (SRS D23).** If S0-A-01 to S0-A-03 pass but the merged experts are far more interchangeable than centralized ones, Gate A passes with a recorded finding:
   - the redundancy is reported prominently as a limitation;
   - its cause is diagnosed with the full-model and partial-update arms and the expert-drift metric;
