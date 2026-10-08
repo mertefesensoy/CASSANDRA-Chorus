@@ -155,7 +155,7 @@ Router consistency is the normalized mutual information between map and chosen e
 
 ## 2026-10-08 · Gate A, main arm: sliced training against centralized on Task A
 
-**Purpose.** The Gate A criteria of SRS section 4.4 on the main arm (D18, D20). Criteria, metric definitions (D22) and the reading of a pass with redundant experts (D23) were all registered before the first of these runs. The comparison arms (rolling, router over all workers, partial update, full-model averaging) are running and will be added to this entry; they are diagnosis, not criteria.
+**Purpose.** The Gate A criteria of SRS section 4.4 on the main arm (D18, D20). Criteria, metric definitions (D22) and the reading of a pass with redundant experts (D23) were all registered before the first of these runs. Four comparison arms (rolling assignment, router over all workers, partial update, full-model averaging) diagnose the finding; they are not criteria.
 
 **Setup.**
 
@@ -193,18 +193,44 @@ Random routing, removal and necessity are on the curve set (256 sequences per ma
 1. **Every Gate A criterion is met on every seed.** Sliced training matches centralized accuracy: every map perfect on the marked variant, and within 0.04 points of centralized (0.05 of the Bayes ceiling 0.95106) on the unmarked one. No expert is starved.
 2. **The experts it produces are much more interchangeable than centralized ones, on every seed and both variants.** Routing tokens at random keeps 95% to 96% accuracy (marked) and 91% (unmarked, against 95% trained). Removing any single expert from every layer costs at most 0.07 points, against up to 18 points centralized. This is the pattern seen in the one-seed check run, now at the full budget on three seeds. By D23 it does not change the verdict; it is a limitation to diagnose, and Task B must show whether it costs capacity.
 3. **The router still separates maps, at least as strongly as centralized.** Router consistency in layers 1 and 2 is 0.27 to 0.46 for sliced against 0.12 to 0.37 centralized (ceiling 2/3), and the two most-chosen experts take 68% to 84% of each map's traffic there. So routing is map-dependent, but the experts it chooses between can each do the job.
-4. **The two holders of each expert route similar maps to it.** Expert drift in the final round is at most 0.14 per layer on average and 0.24 at worst, on a scale where 1 means disjoint map mixes. Drift compares how each holder's model routes the curve set after its local steps, a proxy for what it trained the expert on (step 8 doc). This does not explain the redundancy. The candidate explanation from the check run (each worker's four experts must cover all eight maps, so every expert learns every map) is still untested; the partial-update and full-model arms are the test (D23).
+4. **The two holders of each expert route similar maps to it.** Expert drift in the final round is at most 0.14 per layer on average and 0.24 at worst, on a scale where 1 means disjoint map mixes. Drift compares how each holder's model routes the curve set after its local steps, a proxy for what it trained the expert on (step 8 doc). The comparison arms below show that drift does not track the redundancy.
+
+**Comparison arms (D20, D23): where the redundancy comes from.**
+
+Each arm changes one thing from the main arm, at the same budget and Gate A setting, seeds 7, 11 and 19, both variants. They are 24 runs from `configs/queues/gate_a_comparison.toml` (step 7), run from a byte-identical copy outside the repository on commit `f8ac7ef` (clean), the same code as the main arm.
+
+| Arm | What changes from the main arm | Necessity / centralized (marked; unmarked) | Worst single-expert removal, points (marked; unmarked) |
+|---|---|---|---|
+| Centralized | (reference) | 1; 1 | 8.62 to 18.10; 8.00 to 13.04 |
+| Sliced, coverage (main) | | 0.08 to 0.10; 0.06 | 0.00; 0.03 to 0.07 |
+| Sliced, rolling | assignment shifts by one expert each round | 0.15 to 0.16; 0.17 to 0.18 | 0.00 to 0.01; 0.02 to 0.05 |
+| Sliced, router over all | router rows averaged over all workers | 0.05 to 0.07; 0.05 | 0.00; 0.00 to 0.04 |
+| Partial update | every worker routes over all 8 experts; still updates only its 4 (router over all, D21) | 0.56 to 0.70; 0.61 to 0.67 | 1.17 to 11.08; 3.51 to 6.05 |
+| Full-model averaging | every worker holds, routes over and updates all 8 (router over all) | 0.64 to 0.76; 0.72 to 0.80 | 2.82 to 9.63; 5.02 to 5.75 |
+
+Necessity and removal on the curve set, ranges over seeds; full table with run IDs in `results/task_a_gate_a.md` ("Arms side by side").
+
+**What the comparison shows (this setting; three seeds per cell):**
+
+5. **Every arm meets the accuracy criteria.** Lowest marked map 0.99987 over all 36 runs; unmarked gate accuracy within 0.06 points of the Bayes ceiling in every arm; no negligible expert anywhere (least-used share 0.039 or more).
+6. **The arms fall into two groups, split by whether a worker routes over all experts.** Where routing during local training is limited to the worker's slice (the three sliced arms), necessity is 5% to 18% of centralized and removing an expert costs at most 0.07 points. Where every worker routes over all eight experts (partial update and full-model averaging), it is 56% to 80% of centralized and removing an expert costs 1.2 to 11.1 points.
+7. **The cleanest contrast is partial update against sliced with the router over all.** These two arms differ only in whether a worker may route tokens to experts it does not update: same assignment, same four experts updated per worker, same router rule. Allowing it raises necessity from 5% to 7% of centralized to 56% to 70%. So in this setting, most of the redundancy comes from restricting each worker's routing to its slice, not from which experts each worker updates or how the router is merged. This supports the candidate explanation from the check run (each worker's four experts must serve all eight maps). What each expert actually learns was not measured directly.
+8. **Periodic averaging alone costs some specialization too.** Full-model averaging, with no slicing at all, keeps 64% to 80% of centralized necessity. Partial update is close behind it (56% to 70%).
+9. **The assignment policy and the router rule matter little next to that.** Rolling raises necessity two to three times over coverage (15% to 18% against 6% to 10%), and averaging the router over all workers instead of holders changes it little (5% to 7%). Both stay far below the partial and full arms.
+10. **Drift does not track the redundancy.** Final-round drift is near zero in the rolling, partial and full arms (layer means at most 0.035) and up to 0.14 in the two coverage arms, so redundant and non-redundant arms both have low drift.
+
+**Bearing on the gate review (for the owner; no decision taken here).** The criteria are met, and the D23 finding now has a measured source in this setting: routing restricted to a slice during local training. Partial update recovers most of the specialization at the same update cost per worker. But it needs every worker to run the full model's forward pass, the memory cost slicing exists to avoid. Task B is where any capacity cost of the redundancy must show (D23).
 
 **Operational notes (do not affect the numbers).**
 
 - Run 1 (`20261008T081034Z_taskA-sliced-coverage-marked_s7`) was stopped when the laptop had to travel, after round 5, and finished with `--resume` from its checkpoint on the same commit. Resume is bitwise identical in the step 6 check (`43f3958`); that was not re-checked for this run.
 - Every run held the keep-awake request. The power summaries (one per run) show no mains drop-outs, standby entries or stalls in either the power monitor or the Windows event log, and no runtime warnings. Run 1's first segment (rounds 0 to 5), stopped before travel, wrote no power summary, so its power history is not recorded.
 - Runs 2 to 6 took 338 s to 504 s each through the visible launcher; run 1's resumed segment (rounds 6 to 9) took 175 s.
+- Comparison queue, 09:59 to 13:05 UTC: all 24 runs completed with keep-awake held, no standby entries, no stalls and no runtime warnings. Mains drop-outs returned. 16 runs logged short drop-outs, 99 Windows "AC offline" events in all, up to 19 in one run, each bridged by the battery. Mains was also off for 16 minutes (11:51:05 to 12:07:26), the whole of `20261008T115103Z_taskA-partial-unmarked_s11`, which ran on battery (99% to 72%) and slowed from 29 s to 196 s per round. Training is deterministic, so these changed only wall-clock time.
 
 **Not tested:**
 
-- The comparison arms (running; to be added).
-- Why the experts are interchangeable.
+- What each expert learns (for example, per-expert accuracy on each map); the source of the redundancy is located by the arms above, not measured inside the experts.
 - Whether it costs anything on Task B, other model sizes, budgets, worker counts or capacities.
 - Faults and skew in a Gate A run.
 - Reproduction on another machine.

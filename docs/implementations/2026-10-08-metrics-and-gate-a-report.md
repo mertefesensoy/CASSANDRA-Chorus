@@ -33,7 +33,7 @@ So step 8 is an analysis module plus a report script, and no run needs repeating
 | `cassandra_chorus/metrics/routing.py` | `router_consistency` (normalized mutual information), `top2_share`, `js_divergence`, `expert_drift`, `negligible_experts`, `routing_necessity_gap` (named apart from the step 4 diagnostic `metrics.task_a.routing_necessity`, which measures the accuracies it subtracts). |
 | `cassandra_chorus/metrics/gate_a.py` | Reading runs from logs, choosing the run for each arm, variant and seed, building result rows, and evaluating S0-A-01 to S0-A-06. |
 | `cassandra_chorus/metrics/__init__.py` | Public names. |
-| `scripts/analyze_task_a.py` | Writes `results/task_a_gate_a.md`: the criteria verdicts per seed, the D23 necessity ratios, one table per arm (S0-F-23) and the metric definitions. |
+| `scripts/analyze_task_a.py` | Writes `results/task_a_gate_a.md`: the criteria verdicts per seed, the D23 necessity ratios, the arms side by side, one table per arm (S0-F-23) and the metric definitions. The header records the analysis commit and whether the tree had uncommitted changes. |
 | `tests/test_metrics_routing.py`, `tests/test_gate_a.py` | Tests below; `test_gate_a.py` also runs the report script on synthetic run folders. |
 
 ## Implementation Approach
@@ -58,6 +58,7 @@ Pilots, check runs and stopped runs never match. If two completed runs claim the
 For each run, the row records:
 
 - **Accuracy:** gate accuracy and lowest map accuracy (S0-F-20).
+- **Removal cost:** accuracy with the trained router minus the lowest accuracy with one expert removed from every layer, on the curve set (from the same diagnostic). Not a criterion; it sits beside necessity in the arms-side-by-side table.
 - **Routing necessity:** accuracy with the trained router minus accuracy with random routing, both on the curve set, as the step 4 diagnostic measures them (D22). The gate set is not re-scored under random routing, so subtracting from gate accuracy would mix two sets.
 - **Router consistency:** per layer, normalized mutual information on the gate set, plus the top-2 share (S0-F-21).
 - **Negligible experts:** per layer, the experts whose share of tokens over all positions is below 0.1 · k/E (S0-F-22, S0-A-03).
@@ -149,13 +150,13 @@ python -m pytest tests/test_metrics_routing.py tests/test_gate_a.py -q
 
 Full suite at commit `c2ed8ed`, same laptop: 235 CPU tests (`-m "not gpu"`) and the 11 GPU tests (`-m gpu`, RTX 4070 Laptop GPU, run after the main-arm queue freed the GPU) all passed. The report changes after that commit touch only `scripts/analyze_task_a.py` and `tests/test_gate_a.py`, whose 12 tests pass.
 
-On real runs (6 centralized at commit `723f072`, 6 main-arm at `f8ac7ef`):
+On real runs (6 centralized at commit `723f072`; 6 main-arm and 24 comparison-arm runs at `f8ac7ef`, all clean):
 
 ```bash
 python -m scripts.analyze_task_a
 ```
 
-This wrote `results/task_a_gate_a.md`: verdict pass, D23 paragraph raised in 6 of 6 seed and variant pairs. Cross-checks:
+This wrote `results/task_a_gate_a.md` from 36 runs, regenerated from a clean tree: criteria verdict pass, D23 paragraph raised in 6 of 6 seed and variant pairs. The arms-side-by-side ranges were also computed by a separate script reading the logs directly, and agree. Cross-checks:
 
 - **Main-arm rows:** a separate script read the `final` records directly. Its trained and random-routing accuracies agree with the report's necessity, and its least-used expert shares agree with the zero negligible-expert count.
 - **Centralized rows:** gate accuracy, lowest map, random routing and Bayes agree with the step 4 table in `RESULTS.md`.
@@ -165,7 +166,6 @@ The interpretation is in `RESULTS.md` (Gate A, main arm). The drift values (fina
 
 **Not tested:**
 
-- The report on the comparison arms with real runs (their queue is running).
 - An independent recomputation of drift or consistency from saved models instead of logged tables.
 - Runs that include dropped workers. Dropped workers are covered by a synthetic test only.
 

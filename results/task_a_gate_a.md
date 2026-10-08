@@ -1,6 +1,6 @@
 # Task A · Gate A report
 
-Generated 2026-10-08 13:06 UTC by `python -m scripts.analyze_task_a` (code `e44d0a3`) from the run logs in `C:\Users\senso\chorus-runs`. Criteria and their reading were registered before any Gate A run (SRS section 4.4, D10, D22, D23).
+Generated 2026-10-08 13:06 UTC by `python -m scripts.analyze_task_a` (code `3e08ab4`) from the run logs in `C:\Users\senso\chorus-runs`. Criteria and their reading were registered before any Gate A run (SRS section 4.4, D10, D22, D23).
 
 ## Criteria verdict: PASS
 
@@ -22,6 +22,25 @@ S0-A-04 (Task B) is not part of Gate A. The criteria apply to the main arm; the 
 - unmarked: main-arm necessity divided by centralized necessity, by seed: 0.06, 0.06, 0.06.
 
 **Recorded finding (D23).** In 6 of 6 seed and variant pairs the main arm's routing necessity is below half of the centralized run's: its merged experts are much more interchangeable. By the reading registered before Gate A, this does not change the verdict above. It is reported as a limitation, its cause is to be diagnosed with the comparison arms and expert drift below, and Task B must show whether it costs capacity.
+
+## Arms side by side
+
+Ranges over seeds. Necessity and removal cost on the curve set; the ratio divides each run's necessity by the centralized run's with the same seed and variant.
+
+| Arm | Variant | Runs | Gate accuracy | Necessity | Necessity / centralized | Worst single-expert removal (points) |
+|---|---|---|---|---|---|---|
+| Centralized (reference) | marked | 3 | 1.00000 | 0.509 to 0.537 | 1.00 | 8.62 to 18.10 |
+| Centralized (reference) | unmarked | 3 | 0.95074 to 0.95111 | 0.668 to 0.784 | 1.00 | 8.00 to 13.04 |
+| Sliced, coverage (main arm) | marked | 3 | 1.00000 | 0.041 to 0.050 | 0.08 to 0.10 | 0.00 |
+| Sliced, coverage (main arm) | unmarked | 3 | 0.95056 to 0.95102 | 0.039 to 0.043 | 0.06 | 0.03 to 0.07 |
+| Sliced, rolling assignment | marked | 3 | 0.99998 to 1.00000 | 0.077 to 0.087 | 0.15 to 0.16 | 0.00 to 0.01 |
+| Sliced, rolling assignment | unmarked | 3 | 0.95061 to 0.95103 | 0.117 to 0.131 | 0.17 to 0.18 | 0.02 to 0.05 |
+| Sliced, router averaged over all workers | marked | 3 | 1.00000 | 0.028 to 0.038 | 0.05 to 0.07 | 0.00 |
+| Sliced, router averaged over all workers | unmarked | 3 | 0.95054 to 0.95073 | 0.033 to 0.040 | 0.05 | 0.00 to 0.04 |
+| Partial update (S0-F-26) | marked | 3 | 1.00000 | 0.287 to 0.379 | 0.56 to 0.70 | 1.17 to 11.08 |
+| Partial update (S0-F-26) | unmarked | 3 | 0.95053 to 0.95116 | 0.406 to 0.525 | 0.61 to 0.67 | 3.51 to 6.05 |
+| Full-model local averaging (S0-F-14) | marked | 3 | 1.00000 | 0.330 to 0.409 | 0.64 to 0.76 | 2.82 to 9.63 |
+| Full-model local averaging (S0-F-14) | unmarked | 3 | 0.95066 to 0.95113 | 0.499 to 0.568 | 0.72 to 0.80 | 5.02 to 5.75 |
 
 ## Results by arm
 
