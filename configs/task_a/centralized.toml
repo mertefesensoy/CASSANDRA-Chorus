@@ -1,0 +1,52 @@
+# PLAN step 4 part 2: the full centralized Task A matrix (owner decisions 2026-10-07).
+# Budget 5,000 steps of 64; final linear learning-rate decay over the last 20%.
+# Run once per variant and seed, for example:
+#   python -m scripts.train_task_a_centralized --config configs/task_a/centralized.toml
+#       --set run.seed=11 --set task_a.marked=false --set run.name=taskA-central-unmarked
+
+[run]
+name = "taskA-central-marked"
+seed = 7
+device = "cuda"
+determinism = "warn"
+
+[model]
+vocab_size = 34          # 26 symbols + 8 map markers
+context_length = 64
+d_model = 128
+n_layers = 4
+n_heads = 4
+expert_hidden = 256
+n_experts = 8
+top_k = 2
+balance_coef = 0.0
+attention = "explicit"
+dispatch = "dense"       # owner decision 2026-10-07: dense for Task A
+
+[task_a]
+n_maps = 8
+n_symbols = 26
+seq_len = 64
+marked = true
+task_seed = 20261007
+
+[optim]
+lr = 1e-3
+beta1 = 0.9
+beta2 = 0.95
+weight_decay = 0.0
+warmup_steps = 100
+grad_clip = 1.0
+batch_size = 64
+decay_fraction = 0.2       # final linear decay (owner decision 2026-10-07)
+final_lr_ratio = 0.1
+
+[train]
+steps = 5000
+eval_every = 250
+curve_n_per_map = 256
+curve_seed = 1001
+gate_n_per_map = 2048
+gate_seed = 1002
+diagnostic_seed = 2001
+save_model = true

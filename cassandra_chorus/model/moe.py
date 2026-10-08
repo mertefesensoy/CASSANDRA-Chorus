@@ -9,7 +9,7 @@ experts is available. Formulas: ``docs/implementations/2026-10-07-moe-transforme
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 import torch
 import torch.nn.functional as F
@@ -59,7 +59,9 @@ class MoELayer(nn.Module):
     model or a slice. The router always has all ``n_experts`` rows.
     """
 
-    def __init__(self, d_model: int, hidden: int, n_experts: int, top_k: int, held: Iterable[int]) -> None:
+    def __init__(
+        self, d_model: int, hidden: int, n_experts: int, top_k: int, held: Iterable[int], dispatch: str = "sparse"
+    ) -> None:
         super().__init__()
         held = tuple(sorted(set(held)))
         bad = [e for e in held if not 0 <= e < n_experts]
@@ -67,9 +69,12 @@ class MoELayer(nn.Module):
             raise ValueError(f"expert indices {bad} are outside 0..{n_experts - 1}")
         if len(held) < top_k:
             raise ValueError(f"a layer holding {len(held)} experts cannot route each token to top_k={top_k}")
+        if dispatch not in ("sparse", "dense"):
+            raise ValueError(f"unknown dispatch {dispatch!r}")
         self.n_experts = n_experts
         self.top_k = top_k
         self.held = held
+        self.dispatch = dispatch
         self.router = nn.Linear(d_model, n_experts, bias=False)
         self.experts = nn.ModuleDict({str(e): SwiGLUExpert(d_model, hidden) for e in held})
 
@@ -80,7 +85,19 @@ class MoELayer(nn.Module):
         allowed = set(allowed)
         return tuple(e for e in self.held if e in allowed)
 
-    def forward(self, x: torch.Tensor, allowed: Iterable[int] | None = None) -> MoEResult:
+    def forward(
+        self,
+        x: torch.Tensor,
+        allowed: Iterable[int] | None = None,
+        select: Callable[[torch.Tensor], torch.Tensor] | None = None,
+    ) -> MoEResult:
+        """Route ``x`` (``[B, T, d]``) through the available experts.
+
+        ``select``, used only by diagnostics, replaces top-k selection: it gets
+        the masked logits ``[N, E]`` and returns ``[N, k]`` distinct available
+        experts. Gate weights are always the softmax over the router's logits
+        of the selected experts.
+        """
         batch, tokens, channels = x.shape
         flat = x.reshape(-1, channels)
         available = self.available(allowed)
@@ -93,18 +110,18 @@ class MoELayer(nn.Module):
         is_available = torch.zeros(self.n_experts, dtype=torch.bool, device=x.device)
         is_available[list(available)] = True
         logits = logits.masked_fill(~is_available, float("-inf"))
-        top_logits, top_idx = logits.topk(self.top_k, dim=-1)
+        if select is None:
+            top_logits, top_idx = logits.topk(self.top_k, dim=-1)
+        else:
+            top_idx = select(logits)
+            self._check_selection(top_idx, is_available, flat.shape[0])
+            top_logits = logits.gather(1, top_idx)
         gates = F.softmax(top_logits, dim=-1)
 
-        # Sparse dispatch: each expert processes only the tokens that selected it,
-        # in ascending global index, and its weighted output is added back.
-        out = torch.zeros_like(flat)
-        for e in available:
-            rows, slots = (top_idx == e).nonzero(as_tuple=True)
-            if rows.numel() == 0:
-                continue
-            expert_out = self.experts[str(e)](flat[rows])
-            out.index_add_(0, rows, expert_out * gates[rows, slots].unsqueeze(-1))
+        if self.dispatch == "sparse":
+            out = self._sparse(flat, available, top_idx, gates)
+        else:
+            out = self._dense(flat, available, top_idx, gates)
 
         probs = F.softmax(logits, dim=-1)
         counts = F.one_hot(top_idx.reshape(-1), self.n_experts).sum(dim=0)
@@ -115,3 +132,47 @@ class MoELayer(nn.Module):
             counts=counts,
             balance_loss=switch_balance_loss(top_idx, probs, len(available)),
         )
+
+    def _sparse(
+        self, flat: torch.Tensor, available: tuple[int, ...], top_idx: torch.Tensor, gates: torch.Tensor
+    ) -> torch.Tensor:
+        """Each expert processes only the tokens that selected it, in ascending global
+        index, and its gate-weighted output is added back."""
+        out = torch.zeros_like(flat)
+        for e in available:
+            rows, slots = (top_idx == e).nonzero(as_tuple=True)
+            if rows.numel() == 0:
+                continue
+            expert_out = self.experts[str(e)](flat[rows])
+            out.index_add_(0, rows, expert_out * gates[rows, slots].unsqueeze(-1))
+        return out
+
+    def _dense(
+        self, flat: torch.Tensor, available: tuple[int, ...], top_idx: torch.Tensor, gates: torch.Tensor
+    ) -> torch.Tensor:
+        """Every available expert processes every token in a few batched products;
+        a gate matrix that is zero outside each token's selected k combines them.
+
+        Same result as :meth:`_sparse` up to rounding. An available expert that no
+        token selects gets an all-zero gradient here instead of none.
+        """
+        experts = [self.experts[str(e)] for e in available]
+        w1 = torch.stack([m.w1.weight for m in experts])  # [A, h, d]
+        w3 = torch.stack([m.w3.weight for m in experts])  # [A, h, d]
+        w2 = torch.stack([m.w2.weight for m in experts])  # [A, d, h]
+        hidden = F.silu(torch.einsum("nd,ahd->anh", flat, w1)) * torch.einsum("nd,ahd->anh", flat, w3)
+        expert_out = torch.einsum("anh,adh->and", hidden, w2)  # [A, N, d]
+        # Gate matrix [N, A] from one-hot products (element-wise ops and a sum only).
+        positions = torch.tensor(available, device=flat.device)
+        chosen = (top_idx.unsqueeze(-1) == positions).to(gates.dtype)  # [N, k, A]
+        gate_matrix = (chosen * gates.unsqueeze(-1)).sum(dim=1)
+        return torch.einsum("and,na->nd", expert_out, gate_matrix)
+
+    def _check_selection(self, top_idx: torch.Tensor, is_available: torch.Tensor, n_tokens: int) -> None:
+        if top_idx.shape != (n_tokens, self.top_k):
+            raise ValueError(f"select must return shape {(n_tokens, self.top_k)}, got {tuple(top_idx.shape)}")
+        if not bool(is_available[top_idx].all()):
+            raise ValueError("select chose an unavailable expert")
+        ordered = top_idx.sort(dim=1).values
+        if bool((ordered[:, 1:] == ordered[:, :-1]).any()):
+            raise ValueError("select must choose k distinct experts per token")

@@ -76,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = load_config(args.config, SmokeConfig, args.overrides)
     repro.prepare_process(cfg.run.determinism)  # before any CUDA work
+    repro.set_cpu_threads(cfg.run.cpu_threads)
     device = resolve_device(cfg.run.device)  # fail before creating a run folder
     run_id = make_run_id(cfg.run.name, cfg.run.seed)
 

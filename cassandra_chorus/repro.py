@@ -20,6 +20,7 @@ then :func:`seed_everything` and :func:`apply_determinism`.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import platform
 import random
@@ -61,6 +62,17 @@ def prepare_process(mode: str) -> None:
     os.environ.setdefault(CUBLAS_ENV, CUBLAS_DETERMINISTIC_VALUE)
 
 
+def set_cpu_threads(n: int) -> None:
+    """Set PyTorch's CPU thread count (intra-op parallelism).
+
+    Results of CUDA runs do not depend on it; on the CPU, float reductions may
+    be split differently and round differently.
+    """
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ValueError(f"cpu_threads must be a positive integer, got {n!r}")
+    torch.set_num_threads(n)
+
+
 def apply_determinism(mode: str) -> dict[str, Any]:
     """Configure PyTorch for ``mode`` and return the settings now in force.
 
@@ -100,6 +112,17 @@ def seed_everything(seed: int) -> dict[str, int]:
     return {"python_random": seed, "numpy_global": seed, "torch": seed}
 
 
+def derive_seed(seed: int, label: str) -> int:
+    """A seed for a separate random stream, reproducible from ``seed`` and ``label``.
+
+    The first 8 bytes of SHA-256 of ``"<seed>/<label>"`` as an unsigned integer,
+    modulo 2**63. Different labels give unrelated seeds, so for example the
+    training-data stream is independent of model initialization.
+    """
+    digest = hashlib.sha256(f"{seed}/{label}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") % 2**63
+
+
 def environment_info() -> dict[str, Any]:
     """Software versions and GPU description, for the run log (SRS S0-F-24).
 
@@ -126,6 +149,7 @@ def environment_info() -> dict[str, Any]:
         "torch_cuda": torch.version.cuda,
         "cudnn": torch.backends.cudnn.version() if torch.backends.cudnn.is_available() else None,
         "numpy": np.__version__,
+        "cpu_threads": torch.get_num_threads(),
         "cuda_available": cuda_available,
         "gpu": gpu,
         "env": {name: os.environ.get(name) for name in _RECORDED_ENV},
