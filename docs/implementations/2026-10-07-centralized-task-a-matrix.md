@@ -5,7 +5,7 @@
 | PLAN step | 4 · Centralized baseline on Task A, part 2: the full centralized matrix |
 | Branch | `stage0/04-centralized-task-a` (PR #6) |
 | SRS requirements | S0-F-13 (centralized baseline at the agreed budget), S0-F-20, S0-A-01 precondition (D10), S0-A-06 (seeds 7, 11, 19), S0-N-03, S0-N-07, S0-N-08 |
-| Status | Planned |
+| Status | Complete: six runs on the reference laptop, 2026-10-07 and 2026-10-08 (see Verification and `RESULTS.md`) |
 
 ## Problem / Motivation
 
@@ -59,9 +59,27 @@ The last step, s = T - 1, uses r · η. With η = 1e-3, W = 100, T = 5,000, f = 
 
 ## Verification
 
-To be completed after implementation and the runs.
+**1. Tests.** `python -m pytest`: 147 passed, 0 skipped, on the reference laptop (RTX 4070 Laptop GPU, PyTorch 2.12.1+cu126). This includes four new tests:
 
-**Not tested:** to be completed.
+- the decayed schedule at its boundary steps, matching the worked example above (1e-3 at step 3,999 and 1e-4 at step 4,999);
+- schedule validation;
+- `train_steps` applying the decay;
+- the matrix configuration matching the owner's decisions, while the pilot configuration keeps a constant rate.
+
+**2. The matrix.** Six runs from commit `723f072` with a clean working tree. The full table is the 2026-10-08 entry in `RESULTS.md`. In short:
+
+- **Marked variant:** every map at 1.00000 on the 2,048-per-map gate set, for seeds 7, 11 and 19. The S0-A-01 precondition holds on all three seeds.
+- **Unmarked variant:** 0.95074, 0.95111 and 0.95095, against a Bayes-optimal 0.95106.
+- **Random routing** costs 51 to 54 points (marked) and 67 to 78 points (unmarked).
+- **No expert below the negligible-traffic threshold** in any run.
+
+**3. Operations.** The runs were not interrupted by any failure of the code. Runs 1 to 3 were frozen for long periods while the laptop was in Modern Standby, after mains drop-outs. That changes only wall-clock time, because training is deterministic. One earlier attempt at run 1 was stopped by the power watchdog and is listed in `RESULTS.md`. Diagnosis and the follow-up plan for run operations are in the project memory and the planned operations document.
+
+**Not tested:**
+
+- Equality of these results with a rerun, beyond the pilot-era cross-process check.
+- The balance-loss arm at seeds 11 and 19.
+- Sliced and local-averaging training (steps 5 to 7).
 
 ## Related Docs
 

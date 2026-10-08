@@ -48,6 +48,65 @@ Raw logs on the reference laptop are in `C:\Users\senso\chorus-runs\<run ID>\log
 
 **Not tested:** other seeds (11, 19); the unmarked variant; other model sizes or budgets; any sliced or local-averaging training. The routing-necessity numbers come from the 2,048-sequence curve set, not the gate set. The training times are not comparable between the pilots: pilot 1 ran while the laptop's power adapter was dropping out under load, and pilot 2 after the BIOS update (see below).
 
+## 2026-10-08 · PLAN step 4: full centralized Task A matrix
+
+**Purpose.** The centralized reference for every later Task A comparison (S0-F-13), at the budget the owner approved on 2026-10-07: 5,000 steps of 64 sequences (320,000 sequences per run). Both variants, seeds 7, 11 and 19 (S0-A-06), balance coefficient 0.
+
+**Setup.**
+
+- Same hardware, software and model as the pilot entry below: RTX 4070 Laptop GPU, PyTorch 2.12.1+cu126, 3,421,824 parameters, dense dispatch, `warn` determinism, 1 CPU thread.
+- One change from the pilot: the learning rate now decays linearly to 1e-4 over the last 1,000 steps (owner decision 2026-10-07).
+- Configuration `configs/task_a/centralized.toml`, commit `723f072`, clean working tree for every run.
+- Command: `python -m scripts.train_task_a_centralized --config configs/task_a/centralized.toml --set run.seed=<seed> --set task_a.marked=<true|false> --set run.name=taskA-central-<marked|unmarked>`.
+- Gate set: 2,048 sequences per map (evaluation seed 1002). Diagnostic on the curve set (seed 1001).
+
+| Variant | Seed | Run ID | Config hash | Gate accuracy | Lowest map | Best possible (Bayes) | Precondition (every map at least 99.9%) | Random routing (worst map) | One expert removed |
+|---|---|---|---|---|---|---|---|---|---|
+| marked | 7 | `20261007T210724Z_taskA-central-marked_s7` | `d7dc789feb23` | 1.00000 | 1.00000 | 1.00000 | met | 0.4909 (0.3835) | 0.8538 to 0.9766 |
+| marked | 11 | `20261008T023619Z_taskA-central-marked_s11` | `54072d44f16f` | 1.00000 | 1.00000 | 1.00000 | met | 0.4857 (0.4041) | 0.9138 to 0.9922 |
+| marked | 19 | `20261008T052122Z_taskA-central-marked_s19` | `647f4386685c` | 1.00000 | 1.00000 | 1.00000 | met | 0.4626 (0.3230) | 0.8190 to 0.9985 |
+| unmarked | 7 | `20261008T062954Z_taskA-central-unmarked_s7` | `539abe295397` | 0.95074 | 0.94552 | 0.95106 | not applicable | 0.2563 (0.2104) | 0.8337 to 0.9111 |
+| unmarked | 11 | `20261008T063833Z_taskA-central-unmarked_s11` | `1b15d30112a7` | 0.95111 | 0.94503 | 0.95106 | not applicable | 0.2830 (0.2170) | 0.8707 to 0.9137 |
+| unmarked | 19 | `20261008T064621Z_taskA-central-unmarked_s19` | `bc4201220a7f` | 0.95095 | 0.94813 | 0.95106 | not applicable | 0.1677 (0.1307) | 0.8212 to 0.9024 |
+
+Least-used expert's share of tokens, per layer, on the gate set (negligible below 0.025, S0-A-03):
+
+| Run | Layers 0 to 3 |
+|---|---|
+| marked, seed 7 | 0.099, 0.098, 0.127, 0.197 |
+| marked, seed 11 | 0.153, 0.179, 0.156, 0.185 |
+| marked, seed 19 | 0.155, 0.134, 0.176, 0.153 |
+| unmarked, seed 7 | 0.097, 0.182, 0.146, 0.062 |
+| unmarked, seed 11 | 0.118, 0.208, 0.117, 0.096 |
+| unmarked, seed 19 | 0.174, 0.162, 0.149, 0.115 |
+
+**What this shows (centralized training only, this model size and budget):**
+
+1. **Marked variant: the S0-A-01 precondition holds for every map, on all three seeds.** Each run reached every map at least 0.999 on the curve set by step 750 to 1,250, and finished at 1.00000 on every map of the gate set.
+2. **Unmarked variant: accuracy reaches the Bayes-optimal ceiling.** The gate accuracies are 0.95074, 0.95111 and 0.95095, against an expected best of 0.95106: within 0.04 percentage points either way. One run lands slightly above it, which is possible because the ceiling is an expected value and the gate set is a fixed sample. This is the reference that S0-A-02 (sliced within 2 points of centralized) will be measured against.
+3. **Routing is necessary in every run, and more so in the unmarked variant.** Random routing gives 0.46 to 0.49 on the marked variant, against 1.0 trained. On the unmarked variant it gives 0.17 to 0.28, against about 0.95. Removing one expert from every layer costs up to 18 points. Task A can therefore detect a routing failure at these parameters (the question raised before the pilot), with the caveat that this is a property of these trained models, not a guarantee for sliced ones.
+4. **No expert has negligible traffic in any run without the balance loss.** The smallest share is 0.062 against the 0.025 threshold. The balance loss stays a Gate A remedy, as decided.
+5. **With the final decay, every marked run ended at 1.00000.** Brief dips after step 1,500 still occurred (once per run, lowest map on the curve set 0.9962 to 0.9979), but none at the end.
+
+**Operational notes (do not affect the numbers).**
+
+- Training is deterministic given configuration and seed, so the stalls below changed only wall-clock time.
+- Runs 1 to 3 were repeatedly frozen when the laptop fell into Modern Standby after mains drop-outs. Their recorded training times (19,684 s, 9,851 s and 4,073 s) are therefore not speeds.
+- Runs 4 to 6, with the screen on and a keep-awake request held, took 496 s, 442 s and 570 s.
+
+**Not tested:**
+
+- Sliced and full-model local-averaging training (steps 5 to 7).
+- The balance-loss arm on seeds 11 and 19.
+- Other model sizes and budgets.
+- Bit-exact reproduction of these runs on another machine.
+
+### Engineering runs on 2026-10-08
+
+| Run ID | What it was | Outcome |
+|---|---|---|
+| `20261007T205645Z_taskA-central-marked_s7` | First attempt at matrix run 1, with the power watchdog set to stop on any mains drop-out | Stopped by the watchdog at about step 2,250 after a drop-out at 23:59:50; no end record. After this the owner chose to log drop-outs only. Superseded by `20261007T210724Z` |
+
 ### Engineering runs on 2026-10-07 (inform no research decision; listed so every log is accounted for)
 
 | Run ID | What it was | Outcome |
