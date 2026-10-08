@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft 0.4. The owner's decisions of 2026-10-07 are applied (section 10). Everything else is a proposal until the owner confirms it. |
+| Status | Draft 0.5. The owner's decisions of 2026-10-07 and 2026-10-08 are applied (section 10; SRS section 9). Everything else is a proposal until the owner confirms it. |
 | Date | 2026-10-07 |
 | Repository | https://github.com/mertefesensoy/CASSANDRA-Chorus |
 | Owner | Mert Efe Şensoy |
@@ -39,10 +39,10 @@ Steps are listed in dependency order. No dates are given: the pace depends on th
 | 2 | Mixture-of-experts transformer with maskable router | Model code and unit tests | S0-F-01 to S0-F-03 |
 | 3 | Task A generator (synthetic maps, marked and unmarked) | Dataset code with map labels | S0-F-15 to S0-F-18 |
 | 4 | Centralized baseline on Task A: first a pilot with a routing-necessity diagnostic and a proposed compute budget, then (after owner approval) the full centralized matrix | Learning curves, diagnostic, reference numbers | S0-F-13 |
-| 5 | Coordinator logic: slice assignment and merge, with tests | Reusable module | S0-F-05 to S0-F-10, S0-F-25, S0-N-06 |
+| 5 | Coordinator logic: slice assignment (random, coverage-guaranteeing, rolling) and merge (experts and router rows over their holders), with tests | Reusable module | S0-F-05 to S0-F-10, S0-F-25, S0-N-06 |
 | 6 | Simulation harness: N sequential workers, fault injection, resumable rounds | Sliced training runs | S0-F-04, S0-F-11, S0-F-12, S0-N-04 |
-| 7 | Full-model local-averaging baseline | Separates cost of local steps from cost of slicing | S0-F-14 |
-| 8 | Metrics: accuracy, router consistency, expert usage | Per-run report | S0-F-20 to S0-F-24 |
+| 7 | Local-averaging baselines: full model (every worker holds and updates all experts), and partial update (every worker holds all experts but updates only its assigned ones) | Separate the cost of local steps, of partial expert updates, and of masked routing | S0-F-14, S0-F-26 |
+| 8 | Metrics: accuracy, router consistency, expert usage, expert drift | Per-run report | S0-F-20 to S0-F-24, S0-F-27 |
 | 9 | **Decision gate A**: Task A results against criteria | Go, fix, or stop | S0-A-01 to S0-A-03, under the conditions of S0-A-05 and S0-A-06 |
 | 10 | Task B on text8: centralized, local-averaging and sliced runs | Bits-per-character comparison | S0-F-19, S0-A-04 |
 | 11 | Sweeps over local steps, slice size, worker count, dropout | Results tables | S0-F-23 |
@@ -61,7 +61,17 @@ How each step is carried out (decided 2026-10-07):
 **Gate A (after Task A)**
 
 - Passes: continue to Task B.
-- Fails on routing (router inconsistent or experts unused after merging): try the known remedies before giving up, one at a time and each recorded: guaranteed expert coverage per round, a load-balancing loss, averaging the router more often than the experts, freezing the router after a centrally trained warm-up.
+- Fails on routing (router inconsistent or experts unused after merging): try the known remedies before giving up, one at a time and each recorded:
+  - guaranteed expert coverage per round;
+  - a load-balancing loss;
+  - averaging the router more often than the experts;
+  - freezing the router after a centrally trained warm-up;
+  - a short central router fit after each merge (MoE-DisCo, BTX);
+  - a frozen shared anchor, with attention and router frozen on workers so that they train only experts (FlexOlmo);
+  - z-loss on router logits (SPES).
+
+  The last three were added on 2026-10-08 (SRS D15). Router rows are already merged over their expert's holders by default (SRS D11); the all-workers rule is a comparison arm, not a remedy. Training-free router recalibration (HARC) and SPES's expert-merging warm-up remain later options.
+- The partial-update arm (SRS S0-F-26) and the expert-drift diagnostic (S0-F-27) are read first, to tell masked routing apart from partial updates as the cause.
 - Still fails: the method is not viable in this form. Fall back to modular paths (each worker trains one complete route through a grid of modules), which reuses the coordinator, harness and metrics.
 
 **Gate B (after Task B)**
@@ -118,7 +128,9 @@ The Python package is named `cassandra_chorus` to match the repository. Raw run 
 
 Before the Stage 0 write-up, and ideally before step 5, check the current state of: sub-network and federated-dropout training applied to transformers, DiPaCo and any open implementations, federated or decentralized mixture-of-experts training, and the maintenance status of Flower and Hivemind. The survey may change the design or show that part of the work can be reused.
 
-Timing (decided 2026-10-07): the survey runs alongside steps 1 to 4, is written to `docs/prior-work.md` with a source for every claim, and is reviewed by the owner before step 5 starts. Until then the assumptions in SRS section 10 remain unverified, and no novelty claim is made.
+Timing (decided 2026-10-07): the survey runs alongside steps 1 to 4, is written to `docs/prior-work.md` with a source for every claim, and is reviewed by the owner before step 5 starts.
+
+Reviewed on 2026-10-08 by a walk-through of its proposed plan changes. Decisions D11 to D16 are in SRS section 9, and SRS section 10 is rewritten. Chorus is described as a variant within existing work, and no novelty claim is made.
 
 ## 10. Owner decisions
 

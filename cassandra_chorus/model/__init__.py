@@ -9,6 +9,7 @@ from cassandra_chorus.model.transformer import (
     expected_parameter_count,
     expert_param_owner,
     normalize_held,
+    router_param_layer,
     validate_model_config,
 )
 
@@ -22,6 +23,7 @@ __all__ = [
     "expected_parameter_count",
     "expert_param_owner",
     "normalize_held",
+    "router_param_layer",
     "switch_balance_loss",
     "validate_model_config",
 ]
