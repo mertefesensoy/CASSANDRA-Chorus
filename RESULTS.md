@@ -197,7 +197,7 @@ Random routing, removal and necessity are on the curve set (256 sequences per ma
 
 **Comparison arms (D20, D23): where the redundancy comes from.**
 
-Each arm changes one thing from the main arm, at the same budget and Gate A setting, seeds 7, 11 and 19, both variants. They are 24 runs from `configs/queues/gate_a_comparison.toml` (step 7), run from a byte-identical copy outside the repository on commit `f8ac7ef` (clean), the same code as the main arm.
+Each arm changes one thing from the main arm, with the same Gate A setting and the same number of worker steps and sequences (D17), seeds 7, 11 and 19, both variants. They are 24 runs from `configs/queues/gate_a_comparison.toml` (step 7), run from a byte-identical copy outside the repository on commit `f8ac7ef` (clean), the same code as the main arm.
 
 | Arm | What changes from the main arm | Necessity / centralized (marked; unmarked) | Worst single-expert removal, points (marked; unmarked) |
 |---|---|---|---|
@@ -210,16 +210,18 @@ Each arm changes one thing from the main arm, at the same budget and Gate A sett
 
 Necessity and removal on the curve set, ranges over seeds; full table with run IDs in `results/task_a_gate_a.md` ("Arms side by side").
 
+The arms are equal in steps and sequences, not in memory or computation. A partial or full worker holds all 8 experts, twice the expert parameters of a sliced worker. Each token still uses 2 experts, but the dense dispatch used for Task A evaluates every available expert, so here these arms also did about twice the expert computation per step. Partial update keeps optimizer state for its 4 experts; full averaging for all 8.
+
 **What the comparison shows (this setting; three seeds per cell):**
 
 5. **Every arm meets the accuracy criteria.** Lowest marked map 0.99987 over all 36 runs; unmarked gate accuracy within 0.06 points of the Bayes ceiling in every arm; no negligible expert anywhere (least-used share 0.039 or more).
 6. **The arms fall into two groups, split by whether a worker routes over all experts.** Where routing during local training is limited to the worker's slice (the three sliced arms), necessity is 5% to 18% of centralized and removing an expert costs at most 0.07 points. Where every worker routes over all eight experts (partial update and full-model averaging), it is 56% to 80% of centralized and removing an expert costs 1.2 to 11.1 points.
-7. **The cleanest contrast is partial update against sliced with the router over all.** These two arms differ only in whether a worker may route tokens to experts it does not update: same assignment, same four experts updated per worker, same router rule. Allowing it raises necessity from 5% to 7% of centralized to 56% to 70%. So in this setting, most of the redundancy comes from restricting each worker's routing to its slice, not from which experts each worker updates or how the router is merged. This supports the candidate explanation from the check run (each worker's four experts must serve all eight maps). What each expert actually learns was not measured directly.
+7. **The cleanest contrast is partial update against sliced with the router over all.** These two arms differ in training only in whether a worker may route tokens to experts it does not update: same assignment, same four experts updated per worker, same router rule. They are not equal in memory or computation (above). Allowing it raises necessity from 5% to 7% of centralized to 56% to 70%. So in this setting, most of the redundancy comes from restricting each worker's routing to its slice, not from which experts each worker updates or how the router is merged. In PLAN section 5's terms, the cause is masked routing rather than partial updates. This supports the candidate explanation from the check run (each worker's four experts must serve all eight maps). What each expert actually learns was not measured directly.
 8. **Periodic averaging alone costs some specialization too.** Full-model averaging, with no slicing at all, keeps 64% to 80% of centralized necessity. Partial update is close behind it (56% to 70%).
 9. **The assignment policy and the router rule matter little next to that.** Rolling raises necessity two to three times over coverage (15% to 18% against 6% to 10%), and averaging the router over all workers instead of holders changes it little (5% to 7%). Both stay far below the partial and full arms.
 10. **Drift does not track the redundancy.** Final-round drift is near zero in the rolling, partial and full arms (layer means at most 0.035) and up to 0.14 in the two coverage arms, so redundant and non-redundant arms both have low drift.
 
-**Bearing on the gate review (for the owner; no decision taken here).** The criteria are met, and the D23 finding now has a measured source in this setting: routing restricted to a slice during local training. Partial update recovers most of the specialization at the same update cost per worker. But it needs every worker to run the full model's forward pass, the memory cost slicing exists to avoid. Task B is where any capacity cost of the redundancy must show (D23).
+**Bearing on the gate review (for the owner; no decision taken here).** The criteria are met, and the D23 finding now has a measured source in this setting: routing restricted to a slice during local training. Partial update recovers most of the specialization while each worker still updates only its 4 experts. But every worker must then hold and run all 8, the memory cost slicing exists to avoid. It is a measured diagnostic arm, not one of the remedies registered in PLAN section 5; those are for a routing failure, which did not occur. Task B is where any capacity cost of the redundancy must show (D23).
 
 **Operational notes (do not affect the numbers).**
 
