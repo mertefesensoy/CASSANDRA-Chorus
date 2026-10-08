@@ -236,3 +236,28 @@ def test_other_arms_run_end_to_end(tmp_path, extra):
 def test_resume_refuses_overrides(tmp_path):
     result = run_entry(tmp_path, "--resume", str(tmp_path), "--set", "sim.rounds=4")
     assert result.returncode != 0 and "cannot be combined" in result.stderr
+
+
+def test_queue_runner(tmp_path):
+    queue = tmp_path / "q.toml"
+    queue.write_text(
+        'stop_on_failure = true\n[[run]]\nmodule = "json.tool"\nargs = ["--help"]\n'
+        '[[run]]\nmodule = "json.tool"\nargs = ["no-such-file.json"]\n[[run]]\nmodule = "json.tool"\nargs = ["--help"]\n',
+        encoding="utf-8",
+    )
+    env = {**os.environ, RUNS_DIR_ENV: str(tmp_path / "runs")}
+    result = subprocess.run([sys.executable, "-m", "scripts.ops.run_queue", str(queue)], cwd=REPO_ROOT, env=env,
+                            capture_output=True, text=True, timeout=120)
+    assert result.returncode == 1  # the second entry fails and the queue stops
+    (log,) = list((tmp_path / "runs" / "queue_logs").iterdir())
+    events = [json.loads(line)["event"] for line in log.read_text(encoding="utf-8").splitlines()]
+    assert events == ["queue_start", "start", "finish", "start", "finish", "queue_stopped"]
+
+
+def test_gate_a_queue_file_matches_the_decisions():
+    from scripts.ops.run_queue import load_queue
+
+    runs, stop = load_queue(REPO_ROOT / "configs" / "queues" / "gate_a_main.toml")
+    assert stop and len(runs) == 6
+    combos = {(next(a for a in r["args"] if a.startswith("run.seed=")), next(a for a in r["args"] if a.startswith("task_a.marked="))) for r in runs}
+    assert combos == {(f"run.seed={s}", f"task_a.marked={m}") for s in (7, 11, 19) for m in ("true", "false")}
