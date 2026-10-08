@@ -60,6 +60,16 @@ How each step is carried out (decided 2026-10-07):
 
 **Gate A (after Task A)**
 
+Setting (owner decisions 2026-10-08, SRS D17 to D20):
+
+- 4 workers, each holding 4 of 8 experts per layer, 125 local steps per round, 10 rounds.
+- 5,000 worker steps of 64 sequences in total, equal to the centralized runs.
+- Fresh worker optimizer state each round.
+- Coverage assignment as the main run, rolling as a second arm.
+- Router rows merged over holders, with the all-workers rule as a comparison.
+- Seeds 7, 11 and 19, marked and unmarked variants.
+
+
 - Passes: continue to Task B.
 - Fails on routing (router inconsistent or experts unused after merging): try the known remedies before giving up, one at a time and each recorded:
   - guaranteed expert coverage per round;
