@@ -37,6 +37,9 @@ def fmt(x, digits=4):
 
 def report(rows, result, runs_dir: Path) -> str:
     commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True).stdout.strip()
+    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=REPO_ROOT, capture_output=True, text=True).stdout.strip()
+    if dirty:
+        commit += " with uncommitted changes"
     lines = [
         "# Task A · Gate A report",
         "",
@@ -44,7 +47,9 @@ def report(rows, result, runs_dir: Path) -> str:
         f"(code `{commit}`) from the run logs in `{runs_dir}`. Criteria and their reading were registered before "
         "any Gate A run (SRS section 4.4, D10, D22, D23).",
         "",
-        f"## Verdict: {result['overall'].upper()}",
+        f"## Criteria verdict: {result['overall'].upper()}",
+        "",
+        "The gate decision itself is the owner's (PLAN step 9).",
         "",
         "| Criterion | " + " | ".join(f"Seed {s}" for s in SEEDS) + " | All seeds (S0-A-06) |",
         "|---|" + "---|" * (len(SEEDS) + 1),

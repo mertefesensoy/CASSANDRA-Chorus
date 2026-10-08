@@ -161,11 +161,11 @@ Router consistency is the normalized mutual information between map and chosen e
 
 - Same hardware, software and model as the centralized matrix: RTX 4070 Laptop GPU, PyTorch 2.12.1+cu126, Python 3.13.14, 3,421,824 parameters (276,096 shared, 3,145,728 in experts), dense dispatch, `warn` determinism, 1 CPU thread.
 - Gate A setting (D18): 4 workers, each holding 4 of the 8 experts in every layer, coverage assignment, 125 local steps per round, 10 rounds. Total 5,000 worker steps of 64 sequences, equal to one centralized run (D17). Router rows averaged over holders (D11), plain averaging, fresh AdamW each round with the learning-rate schedule along each worker's trajectory (D19). No drops, no skew.
-- Configuration `configs/task_a/sliced.toml`, commit `f8ac7ef`, clean working tree for every run. Queue `configs/queues/gate_a_main.toml`.
+- Configuration `configs/task_a/sliced.toml`, commit `f8ac7ef`, clean working tree for every run. Queue `configs/queues/gate_a_main.toml`; after the travel stop, the rest ran from a local queue outside the repository (`gate_a_main_resume.toml`: `--resume` of run 1, then the same five entries).
 - Command: `python -m scripts.train_task_a_sliced --config configs/task_a/sliced.toml --set run.seed=<seed> --set task_a.marked=<true|false> --set run.name=taskA-sliced-coverage-<marked|unmarked>`.
 - Analysis: `python -m scripts.analyze_task_a` (commit of the analysis code in the report header). Full tables, per-layer numbers and run IDs: `results/task_a_gate_a.md`.
 
-**Verdict: Gate A passes on the main arm, with the D23 recorded finding.**
+**Criteria verdict: every Gate A criterion is met on the main arm, with the D23 recorded finding.** The gate decision itself is the owner's, at PLAN step 9.
 
 | Criterion | Seed 7 | Seed 11 | Seed 19 |
 |---|---|---|---|
@@ -190,7 +190,7 @@ Random routing, removal and necessity are on the curve set (256 sequences per ma
 
 **What this shows (this model size, budget and setting; three seeds):**
 
-1. **Every Gate A criterion holds on every seed.** Sliced training matches centralized accuracy: every map perfect on the marked variant, and within 0.04 points of centralized (0.05 of the Bayes ceiling 0.95106) on the unmarked one. No expert is starved.
+1. **Every Gate A criterion is met on every seed.** Sliced training matches centralized accuracy: every map perfect on the marked variant, and within 0.04 points of centralized (0.05 of the Bayes ceiling 0.95106) on the unmarked one. No expert is starved.
 2. **The experts it produces are much more interchangeable than centralized ones, on every seed and both variants.** Routing tokens at random keeps 95% to 96% accuracy (marked) and 91% (unmarked, against 95% trained). Removing any single expert from every layer costs at most 0.07 points, against up to 18 points centralized. This is the pattern seen in the one-seed check run, now at the full budget on three seeds. By D23 it does not change the verdict; it is a limitation to diagnose, and Task B must show whether it costs capacity.
 3. **The router still separates maps, at least as strongly as centralized.** Router consistency in layers 1 and 2 is 0.27 to 0.46 for sliced against 0.12 to 0.37 centralized (ceiling 2/3), and the two most-chosen experts take 68% to 84% of each map's traffic there. So routing is map-dependent, but the experts it chooses between can each do the job.
 4. **Holders send each shared expert similar maps.** Expert drift in the final round is at most 0.14 per layer on average and 0.24 at worst, on a scale where 1 means disjoint map mixes. This does not explain the redundancy. The candidate explanation from the check run (each worker's four experts must cover all eight maps, so every expert learns every map) is still untested; the partial-update and full-model arms are the test (D23).
