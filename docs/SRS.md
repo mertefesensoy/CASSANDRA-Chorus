@@ -2,12 +2,13 @@
 
 | | |
 |---|---|
-| Status | Draft 0.4, not yet approved |
+| Status | Draft 0.5, not yet approved |
 | Date | 2026-10-07 |
 | Repository | https://github.com/mertefesensoy/CASSANDRA-Chorus |
 | Owner | Mert Efe Şensoy |
 | Scope of this version | Stage 0 in full; Stages 1 to 3 in outline |
 | Changes since Draft 0.3 | Owner decisions of 2026-10-07 applied: see section 9 for the list, and sections 4.2 to 4.4 for the requirements they affect |
+| Changes since Draft 0.4 | Owner decisions of 2026-10-08 after the prior-work survey (D11 to D16): router rows merged over their expert's holders (S0-F-08), rolling assignment (S0-F-06), a partial-update baseline (S0-F-26), an expert-drift diagnostic (S0-F-27), and section 10 rewritten |
 
 ## 1. Purpose
 
@@ -54,10 +55,13 @@ Determine whether sliced local training of a mixture-of-experts model reaches qu
 
 - **S0-F-04** The system shall simulate N workers on one GPU by running them sequentially within a round.
 - **S0-F-05** At the start of each round the coordinator shall assign each worker a slice. The number of experts per slice shall be configurable per worker, so that workers of different capacity can be simulated.
-- **S0-F-06** The assignment policy shall be configurable. At minimum: random assignment, and assignment that guarantees every expert is held by at least one worker per round.
+- **S0-F-06** The assignment policy shall be configurable. At minimum: random assignment, assignment that guarantees every expert is held by at least one worker per round, and rolling assignment, in which each worker's held experts shift in a fixed rotation from round to round so that every expert is trained evenly over rounds. (Rolling added in Draft 0.5, decision D12. Evidence: FedRolex, arXiv 2212.01548, found random sub-model extraction worse than rolling extraction for a transformer language model; that study sliced dense layers, not mixture-of-experts experts.)
 - **S0-F-25** A slice shall list its experts separately for each mixture layer (a mapping from layer to expert indices), so that the merge does not depend on how the slice was chosen. Two cross-layer policies shall be supported: the same expert indices in every layer (the default) and an independent subset per layer. (Added in Draft 0.4; numbered after S0-F-24 so that existing references stay valid.)
 - **S0-F-07** Each worker shall train its slice for H local steps with routing masked to the experts it holds.
 - **S0-F-08** The coordinator shall merge by averaging the shared part across all workers that returned, and averaging each expert across the workers that held it. An expert held by no worker in a round shall be left unchanged.
+  - **Router rows** (amended in Draft 0.5, decision D11). The router belongs to the shared part, but it has one row per expert, and a worker gives the rows of experts it does not hold no gradient. By default, each expert's router row shall therefore be averaged over the workers that held that expert, like the expert itself, and left unchanged if no worker held it.
+  - Averaging the whole router over all returning workers (the rule of Draft 0.4) shall remain available as a configuration option and be run as a comparison on Task A.
+  - Reason: with that rule, an expert held by n of N workers receives only n/N of its holders' mean router update.
 - **S0-F-09** Averaging shall be weighted by the number of training examples each worker processed.
 - **S0-F-10** The merge step shall accept an optional outer optimizer (for example momentum applied to the averaged update). The default shall be plain averaging.
 - **S0-F-11** The system shall support fault injection: a configurable probability that a worker's result is dropped in a round.
@@ -67,6 +71,11 @@ Determine whether sliced local training of a mixture-of-experts model reaches qu
 
 - **S0-F-13** The system shall train the same model architecture centrally, with total compute (steps × batch size) equal to the sliced run.
 - **S0-F-14** The system shall train a full-model local-averaging baseline, in which every worker holds all experts. This separates the cost of local steps from the cost of slicing.
+- **S0-F-26** The system shall train a partial-update local-averaging baseline, run on Task A next to the other arms.
+  - Every worker holds the full model and routes over all experts, but updates only the experts assigned to it, keeping the others frozen locally.
+  - Experts are merged over the workers they were assigned to, and router rows as in S0-F-08.
+  - Placed between S0-F-14 and sliced training, it separates the cost of masked routing from the cost of partial expert updates.
+  - (Added in Draft 0.5, decision D13. Modelled on SPES, arXiv 2602.11543, which differs from Chorus in that its workers store the full model and route over all experts.)
 
 **Task A: synthetic maps**
 
@@ -86,6 +95,7 @@ Reference parameters (decided 2026-10-07): M = 8 maps over an alphabet of V = 26
 - **S0-F-20** The system shall report, per run: loss and accuracy (Task A) or bits per character (Task B) on held-out data, for the merged full model with all experts active.
 - **S0-F-21** For Task A the system shall report router consistency: how consistently sequences from the same map are sent to the same experts.
 - **S0-F-22** The system shall report expert usage balance, including the count of experts receiving negligible traffic.
+- **S0-F-27** For Task A, the system shall report expert drift: per mixture layer and round, how differently the same expert index is used across the workers that held it, computed from each worker's map-by-expert routing table. A diagnostic used to explain a failure at Gate A, not a pass or fail criterion. (Added in Draft 0.5, decision D16. The failure mode was named "expert semantic blurring" in FedAlign-MoE, arXiv 2603.21276, which the survey read only as an abstract.)
 - **S0-F-23** The system shall support sweeps over H, slice size, N and dropout probability, and produce one results table per sweep.
 - **S0-F-24** Every run shall write its configuration, random seeds, software versions (Python, PyTorch, CUDA), GPU name, per-round metrics and final metrics to a structured log file.
 
@@ -171,6 +181,17 @@ Decided by the owner later on 2026-10-07:
 |---|---|---|
 | D10 | Open item O1: "across all maps" in S0-A-01 | Every map individually, for both the criterion and the centralized precondition, measured on 2,048 held-out sequences per map (section 4.4) |
 
+Decided by the owner on 2026-10-08, after a walk-through of the prior-work survey (`docs/prior-work.md`):
+
+| # | Decision | Outcome |
+|---|---|---|
+| D11 | Router merge | Router rows averaged over their expert's holders by default; averaging over all workers kept as an option and run as a comparison (S0-F-08) |
+| D12 | Assignment policies | Rolling assignment added (S0-F-06) |
+| D13 | Partial-update baseline | Added as a Task A arm (S0-F-26) |
+| D14 | Prior work and framing | Section 10 rewritten. Chorus is described as a variant within existing work on partial-expert local training, never as novel |
+| D15 | Gate A remedies | A short central router fit after merging, a frozen shared anchor on workers, and z-loss added to the list in PLAN section 5 |
+| D16 | Expert drift | Reported as a Task A diagnostic (S0-F-27) |
+
 Name availability, checked on 2026-10-07 by read-only lookups: PyPI has no project named `cassandra-chorus`, and Hugging Face has no user or organisation named `cassandra-chorus` and no model repository `mertefesensoy/cassandra-chorus` (or that repository is private). Neither check reserves the name.
 
 Still open:
@@ -180,10 +201,33 @@ Still open:
 | O2 | Flower, Hivemind or custom networking | Start of Stage 1 |
 | O3 | Flagship model size, tokenizer and corpus | Start of Stage 2 |
 
-## 10. Unverified assumptions
+## 10. Prior work and how Chorus is described
 
-The following come from recollection of the literature and have not been checked against current sources. They must be verified before any public claim of novelty. A prior-work survey to check them started on 2026-10-07 (PLAN section 9); until the owner has reviewed it, they remain unverified.
+Rewritten in Draft 0.5 (decision D14) after the prior-work survey of 2026-10-07 (`docs/prior-work.md`).
 
-- That no complete open-source implementation of sliced local training for mixture-of-experts language models exists.
-- That published sub-network training results are limited to small vision and feed-forward models.
-- The current maintenance status of Flower, Hivemind and related projects.
+**Provenance of the survey.** It was a bounded web survey, written by a research subagent. The key abstracts and the SPES repository were checked against raw arXiv and GitHub data. Claims drawn from inside the papers were read through a summarizing tool and were not re-checked; they must be verified against the papers before any external use.
+
+The two assumptions of Draft 0.4 are **contradicted as worded**:
+
+- **"No complete open-source implementation of sliced local training for mixture-of-experts language models exists."** SPES (arXiv 2602.11543, open code under Apache-2.0) pretrains mixture-of-experts language models of 2B and 7B parameters. Each node trains its own subset of experts over local steps between synchronizations.
+- **"Published sub-network training results are limited to small vision and feed-forward models."** Counterexamples include:
+  - HeteroFL: a transformer on WikiText2;
+  - FedRolex: a transformer on Stack Overflow;
+  - TwIST: GPT-2 at 124M parameters;
+  - SDP: a dense LLaMA-style model up to 1B parameters, synchronized every step;
+  - SPES and MoE-DisCo: mixture-of-experts models at billion scale;
+  - FedMoE, which already uses the S0-F-08 merge rule, for fine-tuning.
+
+**What the bounded search did not find.** Open code combining all of the following:
+
+- workers that store only the shared part and their own experts;
+- routing masked to those experts during local training;
+- experts held by several workers averaged only among them;
+- slice sizes that differ per worker;
+- volunteer hardware as the target.
+
+That is not proof that no such code exists. The search did no code search on GitHub, no citation tracing, and covered no non-English venues. Papers citing SPES are the most likely place for a closer match, and must be checked before any public claim.
+
+**How Chorus is described.** As a variant within existing work on partial-expert local training of mixture-of-experts language models, stating the specific differences above. Never as "first" or "novel".
+
+**Networking frameworks (for O2).** Flower was actively developed (release 1.39.0, 2026-09-28). Hivemind was in low-activity maintenance (1.1.12, 2026-01-03). Petals had no push since 2024-09-07. These figures date from 2026-10-07 and should be re-checked at the start of Stage 1.
