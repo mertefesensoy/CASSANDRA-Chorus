@@ -5,7 +5,7 @@
 | PLAN step | 6 · Simulation harness (also supplies the worker modes that step 7 runs) |
 | Branch | `stage0/06-simulation` (stacked on `stage0/05-coordinator`) |
 | SRS requirements | S0-F-04, S0-F-07, S0-F-11, S0-F-12, S0-F-13 (D17), S0-F-14 and S0-F-26 (worker modes), S0-N-03, S0-N-04, S0-N-05; decisions D17 to D21 |
-| Status | Planned |
+| Status | Implemented and verified on the reference laptop, 2026-10-08 (see Verification). Gate A runs not yet made |
 
 ## Problem / Motivation
 
@@ -107,9 +107,43 @@ The same preflight, keep-awake, power and stall logging as centralized runs (`ca
 
 ## Verification
 
-To be completed after implementation.
+Run on 2026-10-08 on the reference laptop (RTX 4070 Laptop GPU, Windows 11, Python 3.13.14, PyTorch 2.12.1+cu126).
 
-**Not tested:** to be completed.
+**1. Tests.** `python -m pytest`: 223 passed, 0 skipped. That is the 201 earlier tests plus 22 in `tests/test_sim.py`:
+
+- **Worker modes:**
+  - A sliced worker returns exactly the shared part and its experts. The router rows of experts it does not hold come back **bitwise unchanged**, and the others are trained.
+  - A partial-update worker leaves unassigned experts bitwise unchanged and trains every router row.
+  - A full worker returns everything.
+- **One full-mode worker reproduces centralized training bitwise** (same data, schedule and initial state), so the worker wrapper adds nothing to the training itself.
+- **Harness pieces:**
+  - skew weights;
+  - deterministic fault draws (none at p = 0, all at p = 1);
+  - data streams depending only on seed, worker and round;
+  - full-mode slices;
+  - five configuration refusals (unequal compute, partial arm without the all-workers router rule, capacity, capacity list, drop probability);
+  - the checkpoint round trip with Nesterov velocity, and refusal of a mismatched configuration.
+- **Resume:** a tiny run stopped after round 0 and resumed ends with **bitwise-identical final weights**, gate result and diagnostic, compared with an uninterrupted run, on CPU and on CUDA. The resumed log holds `stopped`, `resume` and `completed` in order.
+- **Other arms end to end on CPU:** partial-update, full-model, rolling, Nesterov outer step, and faults at p = 0.5. The logged drops equal the seeded draws (round 0 drops `w1`, round 2 drops `w0`), and dropped workers are not merged.
+- `--set` together with `--resume` is refused.
+
+**2. GPU check run at full size** (`20261008T080021Z_simcheck_s7`). Launched through the visible launcher with the Gate A configuration shortened to 2 rounds (`sim.rounds=2`, `sim.equal_compute_steps=1000`), seed 7, marked variant. A plumbing and timing check, **not Gate A evidence**:
+
+- Rounds took 46 s and 38 s (4 workers × 125 steps, plus worker routing tables, merge and evaluation), so a 10-round run takes about 7 minutes.
+- Coverage held every expert in each round (holders per expert in layer 0: 2, 1, 2, 2, 2, 3, 2, 2 in round 0).
+- The power monitor logged 4 mains changes, matching 2 Windows drop-outs; there was no standby and no stall.
+- **Early observation, not a result:**
+  - After 2 rounds (1,000 worker steps), the merged model reached 1.00000 on every map of the gate set.
+  - Random routing gave **0.8941**, against 0.46 to 0.49 for the centralized models, and removing one expert cost at most 0.3 points.
+  - This suggests sliced training may make experts more redundant, so routing matters less in the merged model. If that holds over full runs, Task A's accuracy criteria could pass while partly side-stepping the router question.
+  - The router-consistency and expert-drift metrics of step 8 are meant to settle this, and it must be read at Gate A.
+
+**Not tested:**
+
+- Full 10-round sliced runs on the GPU and any Gate A run.
+- Skew above 0 and faults on the GPU (CPU only).
+- Per-worker capacities that differ (assignment tests cover them; no end-to-end run).
+- Resuming after a real crash rather than a clean stop. The checkpoint is written atomically, but a crash during worker training simply repeats that round.
 
 ## Related Docs
 
