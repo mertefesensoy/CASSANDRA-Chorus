@@ -1,8 +1,10 @@
 # Task A · Gate A report
 
-Generated 2026-10-08 10:01 UTC by `python -m scripts.analyze_task_a` (code `c2ed8ed`) from the run logs in `C:\Users\senso\chorus-runs`. Criteria and their reading were registered before any Gate A run (SRS section 4.4, D10, D22, D23).
+Generated 2026-10-08 10:05 UTC by `python -m scripts.analyze_task_a` (code `284a6b4`) from the run logs in `C:\Users\senso\chorus-runs`. Criteria and their reading were registered before any Gate A run (SRS section 4.4, D10, D22, D23).
 
-## Verdict: PASS
+## Criteria verdict: PASS
+
+The gate decision itself is the owner's (PLAN step 9).
 
 | Criterion | Seed 7 | Seed 11 | Seed 19 | All seeds (S0-A-06) |
 |---|---|---|---|---|
@@ -44,6 +46,12 @@ S0-A-04 (Task B) is not part of Gate A. The criteria apply to the main arm; the 
 | unmarked | 7 | 0.95056 | 0.94531 | 0.95106 | 0.0435 | 0.007, 0.270, 0.390, 0.018 | 0 | 0.001, 0.036, 0.069, 0.007 | `20261008T093924Z_taskA-sliced-coverage-unmarked_s7` | `496e3abc8ca3` | `f8ac7ef` |
 | unmarked | 11 | 0.95102 | 0.94788 | 0.95106 | 0.0386 | 0.018, 0.327, 0.419, 0.026 | 0 | 0.002, 0.070, 0.072, 0.006 | `20261008T094554Z_taskA-sliced-coverage-unmarked_s11` | `a9cb2b5553e0` | `f8ac7ef` |
 | unmarked | 19 | 0.95058 | 0.94499 | 0.95106 | 0.0431 | 0.005, 0.333, 0.377, 0.026 | 0 | 0.001, 0.045, 0.106, 0.010 | `20261008T095215Z_taskA-sliced-coverage-unmarked_s19` | `3f1941ddc9c9` | `f8ac7ef` |
+
+### Sliced, rolling assignment
+
+| Variant | Seed | Gate accuracy | Lowest map | Bayes | Necessity | Consistency by layer | Negligible experts | Drift, final round (mean by layer) | Run ID | Config | Commit |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| marked | 7 | 1.00000 | 1.00000 | 1.00000 | 0.0837 | 0.062, 0.393, 0.389, 0.026 | 0 | 0.001, 0.003, 0.004, 0.000 | `20261008T095932Z_taskA-sliced-rolling-marked_s7` | `07e57d1cd544` | `f8ac7ef` |
 
 ## Definitions (SRS D22)
 
