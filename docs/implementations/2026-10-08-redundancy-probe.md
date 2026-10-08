@@ -5,7 +5,7 @@
 | PLAN step | 9a · Redundancy probe, before Task B |
 | Branch | `stage0/09-redundancy-probe` (from `main` after the Gate A merge) |
 | SRS | Decisions D23 (reading of a redundant pass) and D24 (Gate A decision and this probe) |
-| Status | Planned; the reading below is to be confirmed by the owner before any probe number is computed |
+| Status | Planned. Reading registered by the owner on 2026-10-08, in commit history before any probe number was computed |
 
 ## Problem / Motivation
 
@@ -54,9 +54,9 @@ Let a(m) be the trained model's accuracy on map m (curve set), and f(ℓ, P, m) 
 - **Expert competence:** c(ℓ, e, m) = the mean of f(ℓ, P, m) over the 7 pairs P that contain e.
 - **Specialization** of expert e in ℓ: max over m of c(ℓ, e, m) minus min over m of c(ℓ, e, m). 0 means it serves every map equally. A layer's specialization is the mean over its 8 experts.
 
-## The reading, to be registered before running (owner to confirm)
+## The reading, registered before running
 
-Proposed, in the spirit of D23. Every number is reported whatever the outcome.
+Confirmed by the owner on 2026-10-08 as proposed, in the spirit of D23. Every number is reported whatever the outcome.
 
 - A layer is **needed** if its bypass cost β(ℓ) is at least 5 points.
 - **The D23 diagnosis is supported from inside the experts** if both hold on every seed and both variants:
@@ -73,7 +73,7 @@ Proposed, in the spirit of D23. Every number is reported whatever the outcome.
 | Data | The 36 saved Gate A models | Retrain with extra logging | Engineering default: no training needed, and the probe describes exactly the models Gate A judged |
 | Forcing unit | Expert pairs, one layer at a time | Single experts (needs k = 1, a routing the models never used); all layers at once (mixes layers) | Engineering default: k = 2 is how the models were trained |
 | Bypass | Zero the mixture output of one layer | Replace it with its mean; bypass all layers | Engineering default: the cleanest test of "the layer is not needed" |
-| Thresholds of the reading | 5 points for "needed", 0.99 retention for "competent" | Others, or directional comparisons only | **Open: owner** |
+| Thresholds of the reading | 5 points for "needed", 0.99 retention for "competent" | Directional comparisons only; no registered reading | Owner, 2026-10-08, before any probe number was computed |
 
 ## Verification
 
