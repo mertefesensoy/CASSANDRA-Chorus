@@ -60,7 +60,23 @@ How each step is carried out (decided 2026-10-07):
 
 **Gate A (after Task A)**
 
+Setting (owner decisions 2026-10-08, SRS D17 to D20):
+
+- 4 workers, each holding 4 of 8 experts per layer, 125 local steps per round, 10 rounds.
+- 5,000 worker steps of 64 sequences in total, equal to the centralized runs.
+- Fresh worker optimizer state each round.
+- Coverage assignment as the main run, rolling as a second arm.
+- Router rows merged over holders, with the all-workers rule as a comparison.
+- Seeds 7, 11 and 19, marked and unmarked variants.
+
+
 - Passes: continue to Task B.
+- **Registered on 2026-10-08, before any Gate A run (SRS D23).** If S0-A-01 to S0-A-03 pass but the merged experts are far more interchangeable than centralized ones, Gate A passes with a recorded finding:
+  - the redundancy is reported prominently as a limitation;
+  - its cause is diagnosed with the full-model and partial-update arms and the expert-drift metric;
+  - Task B must show whether it costs capacity (its bits-per-character gap).
+
+  This reading was fixed after a check run suggested redundancy (`RESULTS.md`, 2026-10-08 check runs), and before the Gate A matrix.
 - Fails on routing (router inconsistent or experts unused after merging): try the known remedies before giving up, one at a time and each recorded:
   - guaranteed expert coverage per round;
   - a load-balancing loss;

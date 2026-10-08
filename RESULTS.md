@@ -101,10 +101,47 @@ Least-used expert's share of tokens, per layer, on the gate set (negligible belo
 - Other model sizes and budgets.
 - Bit-exact reproduction of these runs on another machine.
 
+## 2026-10-08 · Check runs before Gate A: expert redundancy after slicing (preliminary)
+
+**Purpose.**
+
+- Plumbing and timing checks of the simulation harness (PLAN step 6).
+- A matched centralized check of an observation from the first one.
+- Together they informed the Gate A reading registered in SRS D23 before any Gate A run.
+
+**These are not Gate A evidence:** one seed, a fifth of the budget.
+
+**Setup.**
+
+- Both runs: seed 7, marked variant, 1,000 worker or centralized steps of 64 sequences.
+- Same model, task and optimizer settings as the centralized matrix, on the RTX 4070.
+- Learning-rate decay over the last 20% of each trajectory.
+
+| Run ID | What | Gate accuracy | Random routing | One expert removed (worst) | Router consistency, layers 0 to 3 |
+|---|---|---|---|---|---|
+| `20261008T080021Z_simcheck_s7` | Sliced: 4 workers × 4 of 8 experts, 125 steps, **2 rounds**, coverage, router merged over holders. Config `configs/task_a/sliced.toml` with `sim.rounds=2`, `sim.equal_compute_steps=1000`; commit `3f869a3` | 1.00000 every map | **0.894** | 0.997 | 0.078, 0.342, 0.296, 0.032 |
+| `20261008T080441Z_central-1000-check_s7` | Centralized, `train.steps=1000`; config `configs/task_a/centralized.toml`; commit `43f3958` | 1.00000 every map | **0.500** | 0.906 | 0.037, 0.139, 0.314, 0.058 |
+
+Router consistency is the normalized mutual information between map and chosen expert (SRS D22; ceiling 2/3). For reference, the six full centralized runs give 0.04 to 0.05, 0.13 to 0.35, 0.22 to 0.30, 0.04 to 0.06 (marked) and about 0, 0.23 to 0.30, 0.12 to 0.37, 0.01 to 0.04 (unmarked).
+
+**What this suggests (one seed, short budget):**
+
+- At equal budget, the merged sliced model routes about as consistently by map as centralized training.
+- But its experts are largely interchangeable. Random routing keeps 89% accuracy against 50%, and removing any one expert costs at most 0.3 points against 9.4.
+- A plausible mechanism, not tested: on each worker, 4 experts must cover all 8 maps, so experts become generalists.
+- Task A's accuracy criteria cannot detect this. A redundant mixture of experts wastes capacity, which matters for Stage 2.
+
+**Not tested:**
+
+- Other seeds, the unmarked variant, and the full budget (the Gate A matrix).
+- The mechanism.
+- Whether the redundancy costs anything on Task B.
+
 ### Engineering runs on 2026-10-08
 
 | Run ID | What it was | Outcome |
 |---|---|---|
+| `20261008T073034Z_opscheck_s7` | 500-step centralized run through the visible launcher, testing the run-operations module | All preflight checks passed, keep-awake held, monitor matched Windows events; see `docs/implementations/2026-10-08-run-operations.md` |
 | `20261007T205645Z_taskA-central-marked_s7` | First attempt at matrix run 1, with the power watchdog set to stop on any mains drop-out | Stopped by the watchdog at about step 2,250 after a drop-out at 23:59:50; no end record. After this the owner chose to log drop-outs only. Superseded by `20261007T210724Z` |
 
 ### Engineering runs on 2026-10-07 (inform no research decision; listed so every log is accounted for)

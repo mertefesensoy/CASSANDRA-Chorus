@@ -69,11 +69,11 @@ Determine whether sliced local training of a mixture-of-experts model reaches qu
 
 **Baselines**
 
-- **S0-F-13** The system shall train the same model architecture centrally, with total compute (steps × batch size) equal to the sliced run.
+- **S0-F-13** The system shall train the same model architecture centrally, with total compute (steps × batch size) equal to the sliced run. Equal compute means: every worker step uses the same batch size as a centralized step, and the number of worker steps summed over all workers and rounds equals the number of centralized steps (N × H × rounds = steps; decision D17).
 - **S0-F-14** The system shall train a full-model local-averaging baseline, in which every worker holds all experts. This separates the cost of local steps from the cost of slicing.
 - **S0-F-26** The system shall train a partial-update local-averaging baseline, run on Task A next to the other arms.
   - Every worker holds the full model and routes over all experts, but updates only the experts assigned to it, keeping the others frozen locally.
-  - Experts are merged over the workers they were assigned to, and router rows as in S0-F-08.
+  - Experts are merged over the workers they were assigned to. The router is averaged over all returning workers (decision D21, amending Draft 0.5): in this arm every worker trains every router row, so the reason for holder-only averaging in S0-F-08 does not apply.
   - Placed between S0-F-14 and sliced training, it separates the cost of masked routing from the cost of partial expert updates.
   - (Added in Draft 0.5, decision D13. Modelled on SPES, arXiv 2602.11543, which differs from Chorus in that its workers store the full model and route over all experts.)
 
@@ -94,6 +94,9 @@ Reference parameters (decided 2026-10-07): M = 8 maps over an alphabet of V = 26
 
 - **S0-F-20** The system shall report, per run: loss and accuracy (Task A) or bits per character (Task B) on held-out data, for the merged full model with all experts active.
 - **S0-F-21** For Task A the system shall report router consistency: how consistently sequences from the same map are sent to the same experts.
+  - **Definition** (decision D22, 2026-10-08): per mixture layer, the mutual information between the map and the chosen expert over the scored positions of the gate set, counting each of a token's k choices once, divided by the entropy of the map. 0 means routing ignores the map. With E = M = 8 and k = 2 the ceiling is 2/3.
+  - The share of each map's choices going to its two most-used experts is reported beside it.
+  - **Routing necessity** is also reported: trained accuracy minus accuracy under random routing.
 - **S0-F-22** The system shall report expert usage balance, including the count of experts receiving negligible traffic.
 - **S0-F-27** For Task A, the system shall report expert drift: per mixture layer and round, how differently the same expert index is used across the workers that held it, computed from each worker's map-by-expert routing table. A diagnostic used to explain a failure at Gate A, not a pass or fail criterion. (Added in Draft 0.5, decision D16. The failure mode was named "expert semantic blurring" in FedAlign-MoE, arXiv 2603.21276, which the survey read only as an abstract.)
 - **S0-F-23** The system shall support sweeps over H, slice size, N and dropout probability, and produce one results table per sweep.
@@ -191,6 +194,13 @@ Decided by the owner on 2026-10-08, after a walk-through of the prior-work surve
 | D14 | Prior work and framing | Section 10 rewritten. Chorus is described as a variant within existing work on partial-expert local training, never as novel |
 | D15 | Gate A remedies | A short central router fit after merging, a frozen shared anchor on workers, and z-loss added to the list in PLAN section 5 |
 | D16 | Expert drift | Reported as a Task A diagnostic (S0-F-27) |
+| D17 | Equal compute | Same batch per worker step; N × H × rounds = centralized steps (S0-F-13) |
+| D18 | Gate A setting | N = 4 workers, each holding 4 of 8 experts per layer, H = 125 local steps, 10 rounds (PLAN section 5) |
+| D19 | Worker optimizer state | Fresh each round: workers keep no state between rounds |
+| D20 | Gate A assignment | Coverage as the main run, rolling as a second arm |
+| D21 | Partial-update router | Averaged over all workers (S0-F-26) |
+| D22 | Metric definitions | Router consistency as normalized mutual information, with top-2 share and routing necessity beside it (S0-F-21). Expert drift as the Jensen-Shannon divergence, base 2, between the map mixes that different holders sent to the same expert in a round (S0-F-27). Negligible traffic over all positions, as logged (S0-A-03) |
+| D23 | Gate A reading, registered before any Gate A run | If sliced runs pass S0-A-01 to S0-A-03 but their experts are far more interchangeable than centralized ones (much lower routing necessity), Gate A passes **with a recorded finding**. The redundancy is reported prominently as a limitation, and its cause is diagnosed with the full-model and partial-update arms and the drift metric. Task B's bits-per-character gap is where any cost in lost capacity must show (PLAN section 5) |
 
 Name availability, checked on 2026-10-07 by read-only lookups: PyPI has no project named `cassandra-chorus`, and Hugging Face has no user or organisation named `cassandra-chorus` and no model repository `mertefesensoy/cassandra-chorus` (or that repository is private). Neither check reserves the name.
 

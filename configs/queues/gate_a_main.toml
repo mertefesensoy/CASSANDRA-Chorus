@@ -1,0 +1,30 @@
+# Gate A, main arm (owner decision 2026-10-08): sliced training with coverage assignment,
+# router rows merged over holders, marked and unmarked x seeds 7, 11, 19 (SRS D18, D20, S0-A-06).
+# Launch:
+#   powershell -File scripts\ops\launch_visible.ps1 -Module scripts.ops.run_queue
+#     -Arguments configs/queues/gate_a_main.toml -RunsDir C:\Users\senso\chorus-runs
+stop_on_failure = true
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=7", "--set", "task_a.marked=true", "--set", "run.name=taskA-sliced-coverage-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=11", "--set", "task_a.marked=true", "--set", "run.name=taskA-sliced-coverage-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=19", "--set", "task_a.marked=true", "--set", "run.name=taskA-sliced-coverage-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=7", "--set", "task_a.marked=false", "--set", "run.name=taskA-sliced-coverage-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=11", "--set", "task_a.marked=false", "--set", "run.name=taskA-sliced-coverage-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=19", "--set", "task_a.marked=false", "--set", "run.name=taskA-sliced-coverage-unmarked"]
