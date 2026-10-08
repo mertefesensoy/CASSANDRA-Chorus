@@ -1,0 +1,104 @@
+# Gate A, comparison arms (owner decisions 2026-10-08: D20, D11, D13, D21; SRS S0-F-14, S0-F-26).
+# Run after the main arm (configs/queues/gate_a_main.toml). Same Gate A setting and budget;
+# each arm changes one thing. Marked and unmarked x seeds 7, 11, 19: 24 runs, about 3 hours.
+#   sliced-rolling:   rolling assignment instead of coverage
+#   sliced-routerall: router averaged over all workers instead of over holders
+#   partial:          every worker holds the full model, routes over all experts, updates only its assigned ones
+#   fullavg:          every worker holds and updates everything (full-model local averaging)
+stop_on_failure = true
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=7", "--set", "task_a.marked=true", "--set", "sim.policy=rolling", "--set", "run.name=taskA-sliced-rolling-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=11", "--set", "task_a.marked=true", "--set", "sim.policy=rolling", "--set", "run.name=taskA-sliced-rolling-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=19", "--set", "task_a.marked=true", "--set", "sim.policy=rolling", "--set", "run.name=taskA-sliced-rolling-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=7", "--set", "task_a.marked=false", "--set", "sim.policy=rolling", "--set", "run.name=taskA-sliced-rolling-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=11", "--set", "task_a.marked=false", "--set", "sim.policy=rolling", "--set", "run.name=taskA-sliced-rolling-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=19", "--set", "task_a.marked=false", "--set", "sim.policy=rolling", "--set", "run.name=taskA-sliced-rolling-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=7", "--set", "task_a.marked=true", "--set", "sim.router_rule=all", "--set", "run.name=taskA-sliced-routerall-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=11", "--set", "task_a.marked=true", "--set", "sim.router_rule=all", "--set", "run.name=taskA-sliced-routerall-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=19", "--set", "task_a.marked=true", "--set", "sim.router_rule=all", "--set", "run.name=taskA-sliced-routerall-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=7", "--set", "task_a.marked=false", "--set", "sim.router_rule=all", "--set", "run.name=taskA-sliced-routerall-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=11", "--set", "task_a.marked=false", "--set", "sim.router_rule=all", "--set", "run.name=taskA-sliced-routerall-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=19", "--set", "task_a.marked=false", "--set", "sim.router_rule=all", "--set", "run.name=taskA-sliced-routerall-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=7", "--set", "task_a.marked=true", "--set", "sim.mode=partial", "--set", "sim.router_rule=all", "--set", "run.name=taskA-partial-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=11", "--set", "task_a.marked=true", "--set", "sim.mode=partial", "--set", "sim.router_rule=all", "--set", "run.name=taskA-partial-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=19", "--set", "task_a.marked=true", "--set", "sim.mode=partial", "--set", "sim.router_rule=all", "--set", "run.name=taskA-partial-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=7", "--set", "task_a.marked=false", "--set", "sim.mode=partial", "--set", "sim.router_rule=all", "--set", "run.name=taskA-partial-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=11", "--set", "task_a.marked=false", "--set", "sim.mode=partial", "--set", "sim.router_rule=all", "--set", "run.name=taskA-partial-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=19", "--set", "task_a.marked=false", "--set", "sim.mode=partial", "--set", "sim.router_rule=all", "--set", "run.name=taskA-partial-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=7", "--set", "task_a.marked=true", "--set", "sim.mode=full", "--set", "sim.router_rule=all", "--set", "run.name=taskA-fullavg-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=11", "--set", "task_a.marked=true", "--set", "sim.mode=full", "--set", "sim.router_rule=all", "--set", "run.name=taskA-fullavg-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=19", "--set", "task_a.marked=true", "--set", "sim.mode=full", "--set", "sim.router_rule=all", "--set", "run.name=taskA-fullavg-marked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=7", "--set", "task_a.marked=false", "--set", "sim.mode=full", "--set", "sim.router_rule=all", "--set", "run.name=taskA-fullavg-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=11", "--set", "task_a.marked=false", "--set", "sim.mode=full", "--set", "sim.router_rule=all", "--set", "run.name=taskA-fullavg-unmarked"]
+
+[[run]]
+module = "scripts.train_task_a_sliced"
+args = ["--config", "configs/task_a/sliced.toml", "--set", "run.seed=19", "--set", "task_a.marked=false", "--set", "sim.mode=full", "--set", "sim.router_rule=all", "--set", "run.name=taskA-fullavg-unmarked"]
