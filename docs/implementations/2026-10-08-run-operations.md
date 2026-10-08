@@ -5,7 +5,7 @@
 | PLAN step | none: run infrastructure for steps 4 onward, and for Stage 1 worker clients |
 | Branch | `stage0/ops-run-protocol` (stacked on `stage0/04-centralized-task-a`) |
 | SRS requirements | S0-N-03 (reproducible, documented runs), S0-N-07 (report limits), S0-F-24 (run log) |
-| Status | Planned |
+| Status | Implemented and verified on the reference laptop, 2026-10-08 (see Verification) |
 
 ## Problem / Motivation
 
@@ -106,7 +106,15 @@ Limitation, stated in the log: one-second polling can miss a mains drop-out shor
 
 ### Visible launcher
 
-`scripts/ops/launch_visible.ps1 -Module <python module> [-Arguments <string>] [-RunsDir <path>]` opens a new `powershell.exe` window titled with the module name. It changes to the repository root, sets `CHORUS_RUNS_DIR` if given, runs `python -m <module> <arguments>`, and leaves the window open with the exit code shown.
+`scripts/ops/launch_visible.ps1 -Module <python module> [-Arguments <string>] [-RunsDir <path>] [-LogPath <path>]` opens a new `powershell.exe` window titled with the module name. It changes to the repository root, sets `CHORUS_RUNS_DIR` if given, runs `python -m <module> <arguments>`, and leaves the window open with the exit code shown. It also keeps:
+
+- a transcript, the equivalent of the legacy launcher log, under `<runs folder>\launcher_logs\<time>_<module>.log`;
+- the generated launch script beside it (`.launch.ps1`), as a record of exactly what ran.
+
+Two implementation lessons from testing (2026-10-08):
+
+1. `Start-Process` does not quote argument-list items that contain spaces, so a `-Command` string is mangled. The window therefore runs a generated script with `-File`. The script is written as UTF-8 with a byte-order mark, so Windows PowerShell 5.1 reads the non-ASCII repository path correctly.
+2. In PowerShell the comma binds tighter than `+`, so `@("a" + $x, "b")` nests arrays. The script's lines are therefore added one statement at a time.
 
 ## Mathematical / Statistical Details
 
@@ -128,9 +136,38 @@ Limitation, stated in the log: one-second polling can miss a mains drop-out shor
 
 ## Verification
 
-To be completed after implementation.
+Run on 2026-10-08 on the reference laptop: Windows 11, RTX 4070 Laptop GPU, Python 3.13.14, PyTorch 2.12.1+cu126.
 
-**Not tested:** to be completed.
+**1. Tests.** `python -m pytest`: 170 passed, 0 skipped. That is the 147 earlier tests plus 23 in `tests/test_ops.py`:
+
+- **Settings:** defaults when the file is absent; strict validation; the environment variable override; `ops.example.toml` equal to the defaults.
+- **Preflight, with substituted probes:** all checks passing; a OneDrive runs folder refused, both by root and by path name; low disk and a busy GPU refused, with both named in the error; a missing `nvidia-smi` recorded as "not checked"; the scheduled-task overlap boundary at 34 against 36 minutes for a 20-minute run; a missing task passes; an unqueryable task fails; on battery only warns.
+- **Monitor, with a fake clock:** mains changes and a 25-second stall reported, with correct counts; unknown status reported once; the thread starts and stops.
+- **Live Windows calls:** keep-awake held and released, power status, and the event query.
+- **XML parsing** of Kernel-Power events.
+- **Run log and session:** the `operations` context writes `ops` first and `power_summary` before `end`; 1,200 records written from 4 threads are all complete JSON lines; writing after close raises.
+
+A session-wide test fixture points `CHORUS_OPS_FILE` at a test settings file (GPU-idle check and keep-awake off), so the end-to-end tests never read the real `ops.local.toml` and change nothing on the machine.
+
+**2. Event query against a known night.** `windows_power_events` for 06:00 to 09:30 local on 2026-10-08 returned 10 mains drop-outs, 12 standby entries and 13 exits. That matches the events read by hand during the diagnosis.
+
+**3. Visible launch, end to end.** Run `20261008T073034Z_opscheck_s7`: 500 steps, launched through `launch_visible.ps1` with the real `ops.local.toml`. Its transcript shows exit code 0 after 57 s of training. The run log records:
+
+- all five pre-start checks passed: outside OneDrive, 99.5 GiB free, GPU idle, MUSAHIT next starting at 23:00 UTC against about 1 minute expected, on mains;
+- keep-awake held;
+- the monitor saw 12 mains changes and no stalls;
+- the Windows events for the window show 6 mains drop-outs and no standby. **The monitor's count matched the authoritative count exactly in this run.**
+
+This run was made while the launcher fix was not yet committed, so its log records uncommitted changes and their patch.
+
+Three earlier launch attempts failed because of the two launcher bugs described above. The launcher wrote no transcript for them, and Python ran with the wrong runs folder, so preflight refused (the default `runs/` is inside OneDrive). Their windows were closed.
+
+**Not tested:**
+
+- A real stall caught live by the monitor (only simulated with a fake clock).
+- Keep-awake preventing standby over a long unattended run. That is the purpose; it was observed only for 90 seconds here.
+- Refusal by the scheduled-task check on the real task (only with substituted probes).
+- Machines other than the reference laptop; the code paths for systems other than Windows (no-ops, untested on such a system).
 
 ## Related Docs
 

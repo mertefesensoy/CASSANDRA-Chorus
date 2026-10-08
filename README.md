@@ -31,6 +31,14 @@ Run the tests (the GPU tests are skipped when CUDA is not available):
 python -m pytest
 ```
 
+Machine-level run settings (keep-awake, power logging, pre-start checks such as "runs folder not in OneDrive", "GPU idle" and scheduled tasks to avoid) live in an optional, gitignored `ops.local.toml`. Copy `ops.example.toml` to `ops.local.toml` and adjust it. Long runs should be started in a visible window, which also keeps a transcript under `<runs folder>\launcher_logs`:
+
+```powershell
+powershell -File scripts\ops\launch_visible.ps1 -Module scripts.train_task_a_centralized -Arguments "--config configs/task_a/centralized.toml --set run.seed=11" -RunsDir C:\Users\senso\chorus-runs
+```
+
+Keep the screen on when starting a long run. The run holds a keep-awake request from launch, which stops Windows from going into standby, but cannot wake the machine once it is already in standby.
+
 Smoke check of the run pipeline (prints the run folder and a checksum; the same seed gives the same checksum):
 
 ```powershell
