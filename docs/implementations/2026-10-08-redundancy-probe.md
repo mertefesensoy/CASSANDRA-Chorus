@@ -51,8 +51,10 @@ Let a(m) be the trained model's accuracy on map m (curve set), and f(ℓ, P, m) 
 - **Retention** of a forced cell: r(ℓ, P, m) = f(ℓ, P, m) / a(m).
 - **Competent cell:** r ≥ 0.99. The pair handles that map almost as well as the trained routing.
 - **Competent share** of layer ℓ: the fraction of the 28 × 8 = 224 (pair, map) cells that are competent. 1 means any pair handles any map.
-- **Expert competence:** c(ℓ, e, m) = the mean of f(ℓ, P, m) over the 7 pairs P that contain e.
-- **Specialization** of expert e in ℓ: max over m of c(ℓ, e, m) minus min over m of c(ℓ, e, m). 0 means it serves every map equally. A layer's specialization is the mean over its 8 experts.
+- **Expert competence:** c(ℓ, e, m) = the mean of the retention r(ℓ, P, m) over the 7 pairs P that contain e. A value of 1 means the expert, with any partner, is as good as trained routing on map m.
+- **Specialization** of expert e in ℓ: max over m of c(ℓ, e, m) minus min over m of c(ℓ, e, m). 0 means it serves every map equally well. A layer's specialization is the mean over its 8 experts. Where a(m) = 0, the retention is taken as 1 (there was nothing to lose); in the Gate A models every a(m) is at least 0.94.
+
+  *Correction before any probe run:* the first draft averaged raw accuracy f rather than retention. A unit test showed that this counts maps that are simply harder for the whole model as specialization: identical experts scored 0.07. Retention removes that confound. Specialization is descriptive and is not part of the registered reading.
 
 ## The reading, registered before running
 
@@ -62,6 +64,8 @@ Confirmed by the owner on 2026-10-08 as proposed, in the spirit of D23. Every nu
 - **The D23 diagnosis is supported from inside the experts** if both hold on every seed and both variants:
   1. in the main arm, at least one layer is needed;
   2. in the needed layers, the main arm's competent share is higher than the centralized run's (same seed and variant), and also higher than the partial and full arms'.
+
+  Operational detail, fixed with the code before any probe run: "in the needed layers" means the competent share pooled over the main arm's needed layers, compared with each other model's share pooled over the same layer indices. Per-layer values are reported as well.
 - **"Bypassed" instead** if, in the main arm, no layer is needed on any seed. Then the redundancy is not generalist experts, and Task B's question changes: whether the mixture does any work under slicing.
 - **Mixed outcomes** (for example, prediction 2 holds on some seeds only) are reported as such, without a verdict.
 
