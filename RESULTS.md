@@ -152,3 +152,59 @@ Router consistency is the normalized mutual information between map and chosen e
 | `20261007T035512Z_perfcheck-foreground_s7`, `20261007T035552Z_perfcheck-background_s7` | 300-step timing checks, same configuration, foreground and background | 16 s versus 48 s of training. **Gate accuracy, per-map accuracy, loss and diagnostic identical between the two processes** |
 | `20261007T040840Z_taskA-central-pilot-bal001_s7` | First pilot 2 attempt | Stopped by hand at step 3,750 when the laptop's power adapter was found dropping out under load; no end record. Superseded by `20261007T144407Z` |
 | `20261007T144107Z_powertest_s7` | 1,500-step load test after the BIOS update to G614JI.334, with a watchdog ready to stop it on any adapter drop-out | No drop-out during the test or the pilot 2 run that followed (morning baseline: 2 to 6 per minute under the same load) |
+
+## 2026-10-08 · Gate A, main arm: sliced training against centralized on Task A
+
+**Purpose.** The Gate A criteria of SRS section 4.4 on the main arm (D18, D20). Criteria, metric definitions (D22) and the reading of a pass with redundant experts (D23) were all registered before the first of these runs. The comparison arms (rolling, router over all workers, partial update, full-model averaging) are running and will be added to this entry; they are diagnosis, not criteria.
+
+**Setup.**
+
+- Same hardware, software and model as the centralized matrix: RTX 4070 Laptop GPU, PyTorch 2.12.1+cu126, Python 3.13.14, 3,421,824 parameters (276,096 shared, 3,145,728 in experts), dense dispatch, `warn` determinism, 1 CPU thread.
+- Gate A setting (D18): 4 workers, each holding 4 of the 8 experts in every layer, coverage assignment, 125 local steps per round, 10 rounds. Total 5,000 worker steps of 64 sequences, equal to one centralized run (D17). Router rows averaged over holders (D11), plain averaging, fresh AdamW each round with the learning-rate schedule along each worker's trajectory (D19). No drops, no skew.
+- Configuration `configs/task_a/sliced.toml`, commit `f8ac7ef`, clean working tree for every run. Queue `configs/queues/gate_a_main.toml`.
+- Command: `python -m scripts.train_task_a_sliced --config configs/task_a/sliced.toml --set run.seed=<seed> --set task_a.marked=<true|false> --set run.name=taskA-sliced-coverage-<marked|unmarked>`.
+- Analysis: `python -m scripts.analyze_task_a` (commit of the analysis code in the report header). Full tables, per-layer numbers and run IDs: `results/task_a_gate_a.md`.
+
+**Verdict: Gate A passes on the main arm, with the D23 recorded finding.**
+
+| Criterion | Seed 7 | Seed 11 | Seed 19 |
+|---|---|---|---|
+| Precondition: every map of centralized marked at least 0.999 | 1.00000 | 1.00000 | 1.00000 |
+| S0-A-01: every map of sliced marked at least 0.99 | 1.00000 | 1.00000 | 1.00000 |
+| S0-A-02: sliced unmarked within 2 points of centralized, same seed | −0.018 points | −0.009 points | −0.037 points |
+| S0-A-03: no expert below 0.025 of tokens in any layer (least-used share, both variants) | 0.136 | 0.113 | 0.162 |
+| S0-A-05: experts held per worker, of 8 | 4 | 4 | 4 |
+
+S0-A-06 (every seed on its own) holds for each row. S0-A-04 is Task B's.
+
+**The recorded finding: the merged experts are close to interchangeable.**
+
+| Variant | Arm | Gate accuracy | Random routing (worst map) | One expert removed from every layer | Necessity | Necessity, sliced / centralized |
+|---|---|---|---|---|---|---|
+| marked | centralized | 1.00000 (all seeds) | 0.463 to 0.491 (0.323 to 0.404) | 0.819 to 0.999 | 0.509 to 0.537 | |
+| marked | sliced | 1.00000 (all seeds) | 0.950 to 0.959 (0.903 to 0.954) | 1.0000 for every expert, every seed | 0.041 to 0.050 | 0.08 to 0.10 |
+| unmarked | centralized | 0.9507 to 0.9511 | 0.168 to 0.283 (0.131 to 0.217) | 0.821 to 0.914 | 0.668 to 0.784 | |
+| unmarked | sliced | 0.9506 to 0.9510 | 0.907 to 0.913 (0.886 to 0.902) | 0.9497 to 0.9520 | 0.039 to 0.044 | 0.06 |
+
+Random routing, removal and necessity are on the curve set (256 sequences per map); gate accuracy on the gate set (2,048 per map).
+
+**What this shows (this model size, budget and setting; three seeds):**
+
+1. **Every Gate A criterion holds on every seed.** Sliced training matches centralized accuracy: every map perfect on the marked variant, and within 0.04 points of centralized (0.05 of the Bayes ceiling 0.95106) on the unmarked one. No expert is starved.
+2. **The experts it produces are much more interchangeable than centralized ones, on every seed and both variants.** Routing tokens at random keeps 95% to 96% accuracy (marked) and 91% (unmarked, against 95% trained). Removing any single expert from every layer costs at most 0.07 points, against up to 18 points centralized. This is the pattern seen in the one-seed check run, now at the full budget on three seeds. By D23 it does not change the verdict; it is a limitation to diagnose, and Task B must show whether it costs capacity.
+3. **The router still separates maps, at least as strongly as centralized.** Router consistency in layers 1 and 2 is 0.27 to 0.46 for sliced against 0.12 to 0.37 centralized (ceiling 2/3), and the two most-chosen experts take 68% to 84% of each map's traffic there. So routing is map-dependent, but the experts it chooses between can each do the job.
+4. **Holders send each shared expert similar maps.** Expert drift in the final round is at most 0.14 per layer on average and 0.24 at worst, on a scale where 1 means disjoint map mixes. This does not explain the redundancy. The candidate explanation from the check run (each worker's four experts must cover all eight maps, so every expert learns every map) is still untested; the partial-update and full-model arms are the test (D23).
+
+**Operational notes (do not affect the numbers).**
+
+- Run 1 (`20261008T081034Z_taskA-sliced-coverage-marked_s7`) was stopped when the laptop had to travel, after round 5, and finished with `--resume` from its checkpoint on the same commit. Resume is bitwise identical in the step 6 check (`43f3958`); that was not re-checked for this run.
+- Every run held the keep-awake request. The power summaries (one per run) show no mains drop-outs, standby entries or stalls in either the power monitor or the Windows event log, and no runtime warnings. Run 1's first segment (rounds 0 to 5), stopped before travel, wrote no power summary, so its power history is not recorded.
+- Runs 2 to 6 took 338 s to 504 s each through the visible launcher; run 1's resumed segment (rounds 6 to 9) took 175 s.
+
+**Not tested:**
+
+- The comparison arms (running; to be added).
+- Why the experts are interchangeable.
+- Whether it costs anything on Task B, other model sizes, budgets, worker counts or capacities.
+- Faults and skew in a Gate A run.
+- Reproduction on another machine.

@@ -139,7 +139,7 @@ def test_report_for_a_full_matrix(tmp_path):
     assert analyze_main(["--runs-dir", str(runs), "--out", str(out)]) == 0
     text = out.read_text(encoding="utf-8")
     assert "## Verdict: PASS" in text
-    assert "Recorded finding (D23)" in text
+    assert "Recorded finding (D23).** In 3 of 6 seed and variant pairs" in text
     assert "### Sliced, coverage (main arm)" in text and "### Full-model local averaging (S0-F-14)" in text
     assert "### Partial update" not in text  # arms with no runs are left out
 

@@ -134,15 +134,28 @@ python -m pytest tests/test_metrics_routing.py tests/test_gate_a.py -q
 - necessity taken from the curve set on both sides;
 - the report script on a full matrix and on a partial one.
 
-The full suite and the report on the real Gate A runs are recorded in `RESULTS.md` (Gate A main arm).
+Full suite at commit `c2ed8ed`, same laptop: 235 CPU tests (`-m "not gpu"`) and the 11 GPU tests (`-m gpu`, RTX 4070 Laptop GPU, run after the main-arm queue freed the GPU) all passed. The report changes after that commit touch only `scripts/analyze_task_a.py` and `tests/test_gate_a.py`, whose 12 tests pass.
+
+On real runs (6 centralized at commit `723f072`, 6 main-arm at `f8ac7ef`):
 
 ```bash
 python -m scripts.analyze_task_a
 ```
 
-This writes `results/task_a_gate_a.md`.
+This wrote `results/task_a_gate_a.md`: verdict pass, D23 paragraph raised in 6 of 6 seed and variant pairs. Each row was cross-checked by hand against the run logs' `final` records for:
 
-**Not tested:** the report on the comparison arms with real runs (they have not been run yet). Expert drift checked only on synthetic tables and on the main-arm logs, with no independent recomputation from saved models.
+- gate and lowest-map accuracy;
+- trained and random-routing accuracy on the curve set;
+- the least-used expert's share;
+- the run's commit.
+
+The interpretation is in `RESULTS.md` (Gate A, main arm). The drift values (final-round layer means 0.001 to 0.139, maxima up to 0.242) were read from that report and compared with the synthetic cases for scale only.
+
+**Not tested:**
+
+- The report on the comparison arms with real runs (their queue is running).
+- An independent recomputation of drift or consistency from saved models instead of logged tables.
+- Runs that include dropped workers. Dropped workers are covered by a synthetic test only.
 
 ## Related Docs
 

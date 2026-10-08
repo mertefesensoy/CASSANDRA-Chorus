@@ -18,7 +18,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from cassandra_chorus.metrics.gate_a import SEEDS, collect, evaluate_gate_a
+from cassandra_chorus.metrics.gate_a import REDUNDANCY_FLAG, SEEDS, collect, evaluate_gate_a
 from cassandra_chorus.paths import REPO_ROOT, runs_root
 
 ARM_TITLES = {
@@ -58,11 +58,13 @@ def report(rows, result, runs_dir: Path) -> str:
     for variant, info in result["redundancy"].items():
         ratios = ", ".join(fmt(r, 2) for r in info["necessity_ratio_by_seed"])
         lines.append(f"- {variant}: main-arm necessity divided by centralized necessity, by seed: {ratios}.")
+    ratios = [r for info in result["redundancy"].values() for r in info["necessity_ratio_by_seed"]]
     if any(info["flag"] for info in result["redundancy"].values()):
+        below = sum(r is not None and r < REDUNDANCY_FLAG for r in ratios)
         lines += [
             "",
-            "**Recorded finding (D23).** In at least one seed the main arm's routing necessity is below half of the "
-            "centralized run's: its merged experts are much more interchangeable. By the reading registered before "
+            f"**Recorded finding (D23).** In {below} of {len(ratios)} seed and variant pairs the main arm's routing "
+            "necessity is below half of the centralized run's: its merged experts are much more interchangeable. By the reading registered before "
             "Gate A, this does not change the verdict above. It is reported as a limitation, its cause is to be "
             "diagnosed with the comparison arms and expert drift below, and Task B must show whether it costs capacity.",
         ]
