@@ -148,7 +148,7 @@ python -m pytest tests/test_metrics_routing.py tests/test_gate_a.py -q
 - necessity taken from the curve set on both sides;
 - the report script on a full matrix and on a partial one.
 
-Full suite at commit `c2ed8ed`, same laptop: 235 CPU tests (`-m "not gpu"`) and the 11 GPU tests (`-m gpu`, RTX 4070 Laptop GPU, run after the main-arm queue freed the GPU) all passed. The report changes after that commit touch only `scripts/analyze_task_a.py` and `tests/test_gate_a.py`, whose 12 tests pass.
+Full suite at commit `c2ed8ed`, same laptop: 235 CPU tests (`-m "not gpu"`) and the 11 GPU tests (`-m gpu`, RTX 4070 Laptop GPU, run after the main-arm queue freed the GPU) all passed. Repeated at the final commit of the step (`676fa4c`), GPU free: all 246 passed (the 2 warnings are the ones `tests/test_runlog.py` raises on purpose).
 
 On real runs (6 centralized at commit `723f072`; 6 main-arm and 24 comparison-arm runs at `f8ac7ef`, all clean):
 
