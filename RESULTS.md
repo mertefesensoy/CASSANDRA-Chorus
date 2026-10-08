@@ -290,6 +290,8 @@ The owner decided to tell them apart before Task B. The reading was registered b
 3. **Rolling assignment is less generalist than coverage** (competent share 0.05 to 0.19, specialization 0.03 to 0.05). This fits its higher routing necessity at Gate A (15% to 18% of centralized against 6% to 10%). It is still far from centralized, partial and full.
 4. **Layer 0 of the unmarked models does not route by map** (Gate A consistency about 0.002 there). Its centralized experts are specialized all the same, presumably by input symbol; that was not measured. The competent share needs a pair to handle every map fully, so it registers specialization whatever its basis.
 
+**Post hoc check** (owner decision after these results; no verdict; `results/task_a_probe_all_layers_posthoc.md`). Zeroing all four mixture layers at once collapses every model, sliced ones included: marked 0.25 to 0.40 accuracy, unmarked 0.02 to 0.08. So the marked sliced models do need their mixture. No single layer is needed only because the layers stand in for one another: the redundancy runs across layers as well as across experts.
+
 **Bearing on Task B.** A language model needs far more capacity than eight lookup maps. If sliced experts become generalists on real text too, the mixture holds several copies of similar experts, and Task B's bits-per-character gap is where that cost must show (D23).
 
 **Cross-checks** (not part of the reading):
@@ -300,6 +302,6 @@ The owner decided to tell them apart before Task B. The reading was registered b
 
 **Not tested:**
 
-- Bypassing several mixture layers at once.
+- Bypassing two or three layers at once.
 - What layer-0 experts specialize in.
 - Other budgets and sizes, and Task B.

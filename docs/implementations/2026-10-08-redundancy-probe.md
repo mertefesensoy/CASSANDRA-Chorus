@@ -105,9 +105,16 @@ python -m scripts.probe_task_a
 
 **Operational note:** the keep-awake request was made, but its status line went to the console, which the launcher transcript does not capture (PowerShell 5.1 `Start-Transcript` does not record native programs' output), so it is not on record. No standby or stall was observed: the run finished in one pass.
 
+**Post hoc check (owner decision 2026-10-08, after the registered results were known; no verdict).**
+
+- Command: `python -m scripts.probe_all_layers_task_a`, at commit `8a6160e` with a clean tree.
+- It zeroes all four mixture layers at once and writes `results/task_a_probe_all_layers_posthoc.md`; one new unit test covers the multi-layer hook.
+- Every model collapses: marked 0.25 to 0.40 accuracy, unmarked 0.02 to 0.08, against 1.00 and 0.95 trained, sliced models included.
+- So in the marked sliced models the mixture as a whole is needed. No single layer is needed only because the four layers can stand in for one another.
+
 **Not tested:**
 
-- Bypassing more than one mixture layer at once, so whether the mixture as a whole does any work in the marked sliced models.
+- Bypassing two or three layers at once.
 - What layer-0 experts specialize in, if not the map (presumably the input symbol; not measured).
 - Other budgets, model sizes, and Task B models.
 
