@@ -111,7 +111,7 @@ Let C be a layer's map-by-expert count table over scored positions, where each o
 
 ## Verification
 
-Run on the RTX 4060 laptop (CPU only for these tests), Python 3.12, from the worktree on `stage0/08-metrics`:
+Run on the reference laptop (ASUS ROG Strix G614JI), CPU only (these tests need no GPU), from the worktree on `stage0/08-metrics`:
 
 ```bash
 python -m pytest tests/test_metrics_routing.py tests/test_gate_a.py -q
