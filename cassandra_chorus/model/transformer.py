@@ -202,12 +202,19 @@ class MoETransformer(nn.Module):
 
 
 _EXPERT_PARAM = re.compile(r"^blocks\.(\d+)\.moe\.experts\.(\d+)\.")
+_ROUTER_PARAM = re.compile(r"^blocks\.(\d+)\.moe\.router\.weight$")
 
 
 def expert_param_owner(name: str) -> tuple[int, int] | None:
     """``(layer, global expert)`` for an expert parameter name, ``None`` for the shared part."""
     match = _EXPERT_PARAM.match(name)
     return (int(match.group(1)), int(match.group(2))) if match else None
+
+
+def router_param_layer(name: str) -> int | None:
+    """The layer of a router weight (``[n_experts, d_model]``, one row per expert), else None."""
+    match = _ROUTER_PARAM.match(name)
+    return int(match.group(1)) if match else None
 
 
 def count_parameters(model: nn.Module) -> dict[str, int]:

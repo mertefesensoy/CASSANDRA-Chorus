@@ -5,7 +5,7 @@
 | PLAN step | 5 · Coordinator logic: slice assignment and merge, with tests |
 | Branch | `stage0/05-coordinator` (stacked on `stage0/ops-run-protocol`) |
 | SRS requirements | S0-F-05 to S0-F-10, S0-F-25, S0-F-26 (merge side), S0-N-05, S0-N-06; decisions D6, D11, D12 |
-| Status | Planned |
+| Status | Implemented and verified by tests on the reference laptop, 2026-10-08. No training run uses it yet (step 6) |
 
 ## Problem / Motivation
 
@@ -126,9 +126,44 @@ With η = 1 and μ = 0 this gives θ ← θ̄.
 
 ## Verification
 
-To be completed after implementation.
+**Tests.** `python -m pytest` on the reference laptop (RTX 4070 Laptop GPU, PyTorch 2.12.1+cu126): 201 passed, 0 skipped. That is the 170 earlier tests plus 31 in `tests/test_coordinator.py`. The tests use a small model (E = 4, 2 layers). Each worker result is the global state plus a known per-worker offset, with the router rows of experts it does not hold returned unchanged, as a masked worker returns them. So every merged value is checked against a value computed by hand.
 
-**Not tested:** to be completed.
+**Assignment:**
+
+- Coverage holds every expert in every layer for 10 rounds, in both cross-layer modes, with unequal capacities (2, 2, 3) kept.
+- Coverage refuses too little total capacity.
+- Random respects capacities and is deterministic by seed and round.
+- Rolling: the round-0 windows tile the ring as specified, round 1 shifts them by one, and over 8 rounds every worker holds every expert exactly its capacity times.
+- Rolling with independent layers is relabelled per layer and still covers.
+- The same cross-layer option gives identical indices in every layer.
+- Invalid capacities and duplicate names are refused.
+- Every slice builds a slice model.
+
+**Merge, including the S0-N-06 cases:**
+
+- **Expert held by no worker:** its parameters are bitwise unchanged, and the report lists it per layer.
+- **Worker dropped:** the merge is over the remaining workers only.
+- **Unequal slice sizes:** each expert is averaged over exactly its holders, weighted by examples.
+- The shared part is the example-weighted average (1.75 from offsets 1 and 4 with weights 30 and 10).
+- **Router rows under the default rule:** each row follows its holders, and a row with no holder is unchanged.
+- **Router rows under the `all` rule:** the dilution in the plan's formula is reproduced exactly. A row held by a worker contributing 10 of 40 examples moves by 0.5 instead of 2.
+- All-experts workers reduce to federated averaging.
+- Merging unchanged copies is bitwise the identity. No results leaves the state unchanged. Inputs are never modified.
+- The merged state loads into the full model strictly.
+- Extra, missing or misshaped parameters, a duplicate worker, and non-positive examples are refused.
+
+**Outer optimizer:** Nesterov with lr 1 and momentum 0 equals the plain average. With momentum 0.5 the two-round values match the formula (shifts of 1.5 then 1.75), and untouched router rows and experts keep both their value and their velocity.
+
+**CUDA:** merging GPU tensors gives the same result as on the CPU to 1e-6, under both router rules, with the Nesterov outer optimizer.
+
+**Layering:** `tests/test_layering.py` passes with the new coordinator modules, which import only the model and `repro`.
+
+**Not tested:**
+
+- Any training through the coordinator: the simulation harness is step 6.
+- Performance with large models or many workers.
+- Assignment balance beyond coverage (no load-balancing objective, unlike FLEX-MoE).
+- Real workers on other machines (Stage 1).
 
 ## Related Docs
 
